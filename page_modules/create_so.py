@@ -125,6 +125,75 @@ def _load_warehouses() -> list[str]:
 
 
 # =========================================================
+# LIVE STOCK  (SKU select karte hi Quantity ke paas dikhane ke liye)
+#
+# Gate Out / Material Check jaisa hi calculation:
+#     current stock = location_master.qty  +  IN  -  OUT
+# =========================================================
+
+@st.cache_data(ttl=30, show_spinner=False)
+def _get_sku_stock(sku_code: str) -> float:
+
+    sku_code = _s(sku_code)
+
+    if not sku_code:
+        return 0.0
+
+    try:
+
+        client = get_client()
+
+        location_response = (
+            client
+            .table("location_master")
+            .select("qty")
+            .eq("sku", sku_code)
+            .execute()
+        )
+
+        opening_qty = sum(
+            _f(row.get("qty"))
+            for row in (location_response.data or [])
+        )
+
+        transaction_response = (
+            client
+            .table("inventory_transactions")
+            .select("transaction_type,qty")
+            .eq("sku", sku_code)
+            .execute()
+        )
+
+        transaction_qty = 0.0
+
+        for row in (transaction_response.data or []):
+
+            qty = _f(row.get("qty"))
+
+            transaction_type = _s(
+                row.get("transaction_type")
+            ).upper()
+
+            if transaction_type == "IN":
+
+                transaction_qty += qty
+
+            elif transaction_type == "OUT":
+
+                transaction_qty -= qty
+
+        current_stock = opening_qty + transaction_qty
+
+        return max(0.0, current_stock)
+
+    except Exception:
+
+        # Stock dikhana sirf ek info hai — load fail ho to
+        # SKU add karne mein koi rukawat nahi aani chahiye.
+        return 0.0
+
+
+# =========================================================
 # SESSION STATE
 # =========================================================
 
@@ -661,6 +730,12 @@ def inject_create_so_css() -> None:
 
         .req {
             color: #ef4444;
+        }
+
+
+        .stock-hint {
+            color: #16a34a;
+            font-weight: 700;
         }
 
 
@@ -1742,10 +1817,34 @@ def render_create_so(on_back=None) -> None:
 
     with c2:
 
-        _label(
-            "Quantity",
-            required=True,
+        # Selected SKU ka live available stock, label ke
+        # saamne green mein (jaise purane Emiza system mein
+        # "Quantity  14" dikhta tha)
+        selected_sku_for_stock = sku_map.get(
+            st.session_state.so_new_sku
         )
+
+        if selected_sku_for_stock:
+
+            available_stock = _get_sku_stock(
+                selected_sku_for_stock["sku_code"]
+            )
+
+            st.markdown(
+                f'<span class="field-label">'
+                f'<span class="req">⭐</span> Quantity '
+                f'<span class="stock-hint">'
+                f'{available_stock:g}'
+                f'</span></span>',
+                unsafe_allow_html=True,
+            )
+
+        else:
+
+            _label(
+                "Quantity",
+                required=True,
+            )
 
         quantity = st.number_input(
             "Quantity",
