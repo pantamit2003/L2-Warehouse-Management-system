@@ -934,6 +934,9 @@ def _do_save_receiving(po: dict) -> bool:
 
     st.session_state.receiving_lines = []
     st.session_state.gate_in_success = True
+    # Save ke baad "Gate In Process" (3-card) overview par wapas —
+    # detail screen par hi na raha jaaye.
+    st.session_state.gate_in_stage = None
     # Overlay yahan nahi hataya: agla run apna overlay dikhaye aur
     # page poora render hone ke baad hi hataye (purani screen ka
     # flash na aaye) — create_po.py wala pattern.
@@ -1102,6 +1105,7 @@ def _do_save_qc(po: dict) -> bool:
 
     st.session_state.qc_lines = []
     st.session_state.gate_in_success = True
+    st.session_state.gate_in_stage = None
     st.session_state.gate_in_show_overlay = True
     st.rerun()
     return True
@@ -1341,6 +1345,7 @@ def _do_save_putaway(po: dict) -> bool:
 
     st.session_state.putaway_lines = []
     st.session_state.gate_in_success = True
+    st.session_state.gate_in_stage = None
     st.session_state.gate_in_show_overlay = True
     st.rerun()
     return True
