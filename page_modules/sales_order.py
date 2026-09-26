@@ -123,6 +123,8 @@ def inject_sales_order_css() -> None:
     font-weight: 600;
     white-space: nowrap;
 }
+.so-status-picking    { background: #fef9c3; color: #854d0e; }
+.so-status-packing    { background: #ede9fe; color: #5b21b6; }
 .so-status-partial    { background: #ffedd5; color: #9a3412; }
 .so-status-dispatched { background: #dbeafe; color: #1e40af; }
 .so-status-cancelled  { background: #fee2e2; color: #991b1b; }
@@ -226,6 +228,8 @@ def _load_order_items(sales_order_ids: tuple) -> dict:
 
 @st.cache_data(ttl=5, show_spinner=False)
 def _load_gate_out_totals(order_codes: tuple) -> dict:
+    """(order_id, sku) -> total OUT qty (= Packed, since only Packing
+    inserts inventory_transactions OUT now)."""
     if not order_codes:
         return {}
     try:
@@ -244,6 +248,29 @@ def _load_gate_out_totals(order_codes: tuple) -> dict:
         return totals
     except Exception as e:
         st.error(f"Unable to load Gate Out data: {e}")
+        return {}
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def _load_picking_totals(order_codes: tuple) -> dict:
+    """(order_id, sku) -> total picked_qty ever recorded in `picking`."""
+    if not order_codes:
+        return {}
+    try:
+        response = (
+            get_client()
+            .table("picking")
+            .select("order_id,sku_code,picked_qty")
+            .in_("order_id", list(order_codes))
+            .execute()
+        )
+        totals = {}
+        for row in response.data or []:
+            key = (_s(row.get("order_id")), _s(row.get("sku_code")))
+            totals[key] = totals.get(key, 0.0) + _f(row.get("picked_qty"))
+        return totals
+    except Exception as e:
+        st.error(f"Unable to load Picking data: {e}")
         return {}
 
 
@@ -272,9 +299,20 @@ def _cancel_order(order_db_id: int) -> tuple[bool, str]:
 def _get_order_status(
     order_code: str,
     items: list[dict],
-    gate_out_totals: dict,
+    picking_totals: dict,
+    packed_totals: dict,
     base_status: str,
 ) -> tuple[str, str]:
+    """
+    Status pipeline (in order): CREATED -> PICKING -> PACKING -> DISPATCHED
+    (or CANCELLED at any point).
+
+    - PICKING: kam se kam ek SKU pick ho chuka hai, lekin poora order
+      abhi Packed nahi hua.
+    - PACKING: kam se kam ek SKU Packed/dispatched ho chuka hai, lekin
+      poora order abhi fully Packed/dispatched nahi hua.
+    - DISPATCHED: har SKU ka Packed qty >= Ordered qty.
+    """
 
     if base_status == "CANCELLED":
         return ("CANCELLED", "so-status-cancelled")
@@ -288,20 +326,33 @@ def _get_order_status(
     if not ordered:
         return (base_status, "")
 
-    any_out  = False
-    all_done = True
+    any_picked = False
+    any_packed = False
+    all_done   = True
 
     for sku, ordered_qty in ordered.items():
-        out_qty = gate_out_totals.get((order_code, sku), 0.0)
-        if out_qty > 0:
-            any_out = True
-        if out_qty < ordered_qty:
+
+        picked_qty = picking_totals.get((order_code, sku), 0.0)
+        packed_qty = packed_totals.get((order_code, sku), 0.0)
+
+        if picked_qty > 0:
+            any_picked = True
+
+        if packed_qty > 0:
+            any_packed = True
+
+        if packed_qty < ordered_qty:
             all_done = False
 
     if all_done:
         return ("DISPATCHED", "so-status-dispatched")
-    if any_out:
-        return ("PARTIAL",    "so-status-partial")
+
+    if any_packed:
+        return ("PACKING", "so-status-packing")
+
+    if any_picked:
+        return ("PICKING", "so-status-picking")
+
     return (base_status, "")
 
 
@@ -338,13 +389,14 @@ def _format_date_plain(value) -> str:
 # CONSTANTS
 # =========================================================
 
-TABS      = ["Order Processing", "Dispatched", "Partial", "Cancelled"]
+TABS      = ["Order Processing", "Picking", "Packing", "Dispatched", "Cancelled"]
 PAGE_SIZE = 10
 
 TAB_FILTERS = {
     "Order Processing": None,
+    "Picking":          "PICKING",
+    "Packing":          "PACKING",
     "Dispatched":       "DISPATCHED",
-    "Partial":          "PARTIAL",
     "Cancelled":        "CANCELLED",
 }
 
@@ -685,7 +737,8 @@ def render_sales_order(on_create_order=None) -> None:
     )
 
     items_by_order  = _load_order_items(order_ids)
-    gate_out_totals = _load_gate_out_totals(order_codes)
+    picking_totals  = _load_picking_totals(order_codes)
+    packed_totals   = _load_gate_out_totals(order_codes)
 
     # ── compute effective status ──
     resolved = []
@@ -694,7 +747,7 @@ def render_sales_order(on_create_order=None) -> None:
         base_status = _s(order.get("status")) or "CREATED"
         status, css = _get_order_status(
             _s(order.get("order_id")),
-            items, gate_out_totals, base_status,
+            items, picking_totals, packed_totals, base_status,
         )
         resolved.append({
             **order,
@@ -731,8 +784,9 @@ def render_sales_order(on_create_order=None) -> None:
     stat_items = [
         ("Total",      len(resolved)),
         ("Created",    counts.get("CREATED",    0)),
+        ("Picking",    counts.get("PICKING",    0)),
+        ("Packing",    counts.get("PACKING",    0)),
         ("Dispatched", counts.get("DISPATCHED", 0)),
-        ("Partial",    counts.get("PARTIAL",    0)),
         ("Cancelled",  counts.get("CANCELLED",  0)),
     ]
 
@@ -966,18 +1020,3 @@ def render_sales_order(on_create_order=None) -> None:
                      disabled=(page >= total_pages), key="so_next"):
             st.session_state.so_page_number = page + 1
             st.rerun()
-
-
-# =========================================================
-# CONSTANTS (end of file)
-# =========================================================
-
-TABS = ["Order Processing", "Dispatched", "Partial", "Cancelled"]
-PAGE_SIZE = 10
-
-TAB_FILTERS = {
-    "Order Processing": None,
-    "Dispatched":       "DISPATCHED",
-    "Partial":          "PARTIAL",
-    "Cancelled":        "CANCELLED",
-}
