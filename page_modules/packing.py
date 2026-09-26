@@ -169,21 +169,34 @@ def _load_packed_totals_by_order_sku_location() -> dict:
 
 
 def _clear_packing_caches() -> None:
+
     clear_common_caches()
 
     _load_packed_totals_by_order_sku.clear()
     _load_packed_totals_by_order_sku_location.clear()
 
+    # Also invalidate Gate Out's own cached progress numbers, so a jump
+    # back to Gate Out right after saving shows fresh Picking progress
+    # immediately instead of a stale cached value.
     try:
+
         from page_modules.gate_out import clear_gate_out_caches
+
         clear_gate_out_caches()
+
     except Exception:
+
         pass
 
+    # Also invalidate Dispatch's own cached progress numbers.
     try:
+
         from page_modules.dispatch import clear_dispatch_caches
+
         clear_dispatch_caches()
+
     except Exception:
+
         pass
 
 
@@ -971,9 +984,36 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
 
                 if SEND_EMAIL_AT_PACKING:
 
+                    # Selling Price / MRP email me dikhane ke liye Sales
+                    # Order Items se lookup — packing table me ye columns
+                    # nahi hote, isliye yahan enrich karna padta hai.
+                    price_by_sku: dict = {}
+
+                    for oi in order_items:
+
+                        code = s(oi.get("sku_code"))
+
+                        price_by_sku[code] = {
+                            "mrp": oi.get("mrp"),
+                            "selling_price": oi.get("selling_price"),
+                        }
+
+                    enriched_items = []
+
+                    for item in selected_review_items:
+
+                        enriched = dict(item)
+
+                        price = price_by_sku.get(s(item.get("sku_code")), {})
+
+                        enriched["mrp"] = price.get("mrp")
+                        enriched["selling_price"] = price.get("selling_price")
+
+                        enriched_items.append(enriched)
+
                     email_success, email_error = send_gate_out_email(
                         order_data=selected_order,
-                        gate_out_items=list(selected_review_items),
+                        gate_out_items=enriched_items,
                         processed_by=processed_by,
                     )
 
