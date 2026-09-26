@@ -231,12 +231,17 @@ def _load_open_po_stats() -> dict | None:
 
         from page_modules.gate_in import (
             _load_pos,
-            _load_received_by_po_sku,
+            _load_receiving_all,
+            _load_qc_all,
+            _load_putaway_all,
             _po_summary,
         )
 
         po_data = _load_pos()
-        received_map = _load_received_by_po_sku()
+
+        recv_map = _load_receiving_all()
+        passed_map, rejected_map = _load_qc_all()
+        putaway_map = _load_putaway_all()
 
         pending = 0
         partial = 0
@@ -248,13 +253,16 @@ def _load_open_po_stats() -> dict | None:
 
             status = _po_summary(
                 po,
-                received_map,
+                recv_map,
+                passed_map,
+                rejected_map,
+                putaway_map,
             )["status"]
 
             if status == "PENDING":
                 pending += 1
 
-            elif status == "PARTIAL":
+            elif status in ("RECEIVING", "QC", "PUTAWAY"):
                 partial += 1
 
         return {
@@ -263,7 +271,11 @@ def _load_open_po_stats() -> dict | None:
             "partial": partial,
         }
 
-    except Exception:
+    except Exception as e:
+
+        # TEMPORARY DEBUG — asli error yahan store hota hai. Fix
+        # confirm ho jaye toh ye line hata sakte ho.
+        st.session_state["_open_po_debug_error"] = str(e)
 
         return None
 
@@ -592,6 +604,14 @@ def render_home_dashboard(
         else:
 
             _stat_card("📋", "Open POs", "—", "Data load nahi hua")
+
+            # TEMPORARY DEBUG — asli error yahan dikhega. Fix hone ke
+            # baad ye 2 lines hata dena.
+            if st.session_state.get("_open_po_debug_error"):
+
+                st.caption(
+                    f"Debug: {st.session_state['_open_po_debug_error']}"
+                )
 
     # =====================================================
     # QUICK ACTIONS
