@@ -342,6 +342,10 @@ def send_gate_out_email(
         except Exception:
             pass
 
+        rate = _safe(item.get("mrp")) or "-"
+
+        selling_price = _safe(item.get("selling_price")) or "-"
+
         item_rows += f"""
         <tr>
             <td>{sku}</td>
@@ -352,6 +356,14 @@ def send_gate_out_email(
 
             <td style="text-align:center;">
                 {qty}
+            </td>
+
+            <td style="text-align:right;">
+                {rate}
+            </td>
+
+            <td style="text-align:right;">
+                {selling_price}
             </td>
         </tr>
         """
@@ -492,10 +504,10 @@ td {{
 <div class="container">
 
     <div class="header">
-        L2 WAREHOUSE - Gate Out Notification
+        EMIZA WMS - Gate Out Notification
     </div>
 
-    <div class="status">    
+    <div class="status">
         GATE OUT COMPLETED SUCCESSFULLY
     </div>
 
@@ -624,6 +636,8 @@ td {{
                     <th>Warehouse</th>
                     <th>Location</th>
                     <th>Gate Out Qty</th>
+                    <th>Rate (MRP)</th>
+                    <th>Selling Price</th>
                 </tr>
 
             </thead>
