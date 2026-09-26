@@ -4,6 +4,7 @@ Run:  streamlit run app.py
 """
 from __future__ import annotations
 import base64
+import time
 from pathlib import Path
 import streamlit as st
 from auth import sign_in, sign_out, restore_session
@@ -27,6 +28,29 @@ st.set_page_config(
 )
 
 BG_IMAGE = Path(__file__).parent / "assets" / "bg.jpg"
+
+# ── INACTIVITY AUTO-LOGOUT ────────────────────────────────
+INACTIVITY_LIMIT = 600  # 10 minutes in seconds
+
+
+def check_session_timeout() -> None:
+    """Auto-logout if no interaction for INACTIVITY_LIMIT seconds."""
+    now = time.time()
+    last_active = st.session_state.get("last_active_ts")
+
+    if last_active is not None and (now - last_active) > INACTIVITY_LIMIT:
+        sign_out()
+        for key in list(st.session_state.keys()):
+            st.session_state.pop(key, None)
+        st.session_state.authenticated = False
+        st.session_state.username = None
+        st.session_state.session = None
+        st.session_state.current_page = "Home"
+        st.session_state.session_timeout_msg = True
+        st.rerun()
+
+    st.session_state["last_active_ts"] = now
+# ─────────────────────────────────────────────────────────
 
 
 def _get_bg() -> str:
@@ -367,6 +391,9 @@ def login_page() -> None:
     inject_css(_get_bg())
     st.markdown("<div style='height:12vh'></div>", unsafe_allow_html=True)
 
+    if st.session_state.pop("session_timeout_msg", False):
+        st.warning("⏱️ 10 minutes tak koi activity nahi hui — session timeout ho gaya. Dobara login karo.")
+
     col1, col2, col3 = st.columns([1, 1.3, 1])
     with col2:
         with st.form("login_form"):
@@ -415,6 +442,7 @@ Smarter Warehousing. Stronger Tomorrow.
                 st.session_state.authenticated = True
                 st.session_state.username      = result.username
                 st.session_state.session       = result.session
+                st.session_state.last_active_ts = time.time()
                 st.rerun()
             else:
                 st.error("Invalid username or password")
@@ -700,6 +728,7 @@ def home_page() -> None:
 
 # ── ROUTER ────────────────────────────────────────────────────────────────
 if st.session_state.authenticated:
+    check_session_timeout()
     home_page()
 else:
     login_page()
