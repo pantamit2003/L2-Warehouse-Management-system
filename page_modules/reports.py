@@ -507,6 +507,18 @@ def _load_inventory_report() -> pd.DataFrame:
 
 
 # =========================================================
+# REPORT TYPE CHANGE RESET
+# =========================================================
+
+def _on_report_type_change() -> None:
+    """Reset date filters and old results when report type changes."""
+    st.session_state.rpt_date_from = date.today() - timedelta(days=30)
+    st.session_state.rpt_date_to   = date.today()
+    st.session_state.pop("rpt_df", None)
+    st.session_state.pop("rpt_title", None)
+
+
+# =========================================================
 # MAIN PAGE
 # =========================================================
 
@@ -552,23 +564,29 @@ def render_reports(on_back=None) -> None:
         report_type = st.selectbox(
             "report_type", REPORT_TYPES,
             key="rpt_type", label_visibility="collapsed",
+            on_change=_on_report_type_change,
         )
 
     # Date filters — not needed for Current Inventory
-    date_from = date.today() - timedelta(days=30)
-    date_to   = date.today()
+    if "rpt_date_from" not in st.session_state:
+        st.session_state.rpt_date_from = date.today() - timedelta(days=30)
+    if "rpt_date_to" not in st.session_state:
+        st.session_state.rpt_date_to = date.today()
+
+    date_from = st.session_state.rpt_date_from
+    date_to   = st.session_state.rpt_date_to
 
     if report_type not in ("— Select Report —", "Current Inventory"):
         with c2:
             _label("Date From")
             date_from = st.date_input(
-                "date_from", value=date_from,
+                "date_from", value=st.session_state.rpt_date_from,
                 key="rpt_date_from", label_visibility="collapsed",
             )
         with c3:
             _label("Date To")
             date_to = st.date_input(
-                "date_to", value=date_to,
+                "date_to", value=st.session_state.rpt_date_to,
                 key="rpt_date_to", label_visibility="collapsed",
             )
 
