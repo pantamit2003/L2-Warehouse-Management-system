@@ -7,7 +7,6 @@ import base64
 import time
 from pathlib import Path
 import streamlit as st
-from auth import sign_in, sign_out, restore_session
 from page_modules.create_po import render_create_po
 from page_modules.gate_in import render_gate_in
 from page_modules.create_so import render_create_so
@@ -19,6 +18,8 @@ from page_modules.reports import render_reports
 from page_modules.picking import render_picking
 from page_modules.packing import render_packing
 from page_modules.dispatch import render_dispatch
+from auth import sign_in, sign_out, restore_session, update_activity, is_session_expired
+
 
 st.set_page_config(
     page_title="L2 | Warehouse Management System",
@@ -30,26 +31,21 @@ st.set_page_config(
 BG_IMAGE = Path(__file__).parent / "assets" / "bg.jpg"
 
 # ── INACTIVITY AUTO-LOGOUT ────────────────────────────────
-INACTIVITY_LIMIT = 600  # 10 minutes in seconds
+INACTIVITY_LIMIT = 60 # 10 minutes in seconds
 
 
 def check_session_timeout() -> None:
-    """Auto-logout if no interaction for INACTIVITY_LIMIT seconds."""
-    now = time.time()
-    last_active = st.session_state.get("last_active_ts")
+    username = st.session_state.get("username")
+    if not username:
+        return
 
-    if last_active is not None and (now - last_active) > INACTIVITY_LIMIT:
+    if is_session_expired(username, INACTIVITY_LIMIT):
         sign_out()
-        for key in list(st.session_state.keys()):
-            st.session_state.pop(key, None)
-        st.session_state.authenticated = False
-        st.session_state.username = None
-        st.session_state.session = None
-        st.session_state.current_page = "Home"
+        st.session_state.clear()
         st.session_state.session_timeout_msg = True
         st.rerun()
-
-    st.session_state["last_active_ts"] = now
+    else:
+        update_activity(username)  # active hai toh refresh karo
 # ─────────────────────────────────────────────────────────
 
 
@@ -442,7 +438,7 @@ Smarter Warehousing. Stronger Tomorrow.
                 st.session_state.authenticated = True
                 st.session_state.username      = result.username
                 st.session_state.session       = result.session
-                st.session_state.last_active_ts = time.time()
+                update_activity(result.username)
                 st.rerun()
             else:
                 st.error("Invalid username or password")
@@ -652,9 +648,26 @@ def page_placeholder(name: str, icon: str) -> None:
 """, unsafe_allow_html=True)
 
 
+
+def inject_heartbeat() -> None:
+    """Har 4 min mein Streamlit ko rerun karta hai — true inactivity detect ke liye."""
+    st.markdown("""
+    <script>
+    if (!window._heartbeatStarted) {
+        window._heartbeatStarted = true;
+        setInterval(() => {
+            window.parent.document
+                .querySelectorAll('button')
+                [0]?.click();
+        }, 240000);
+    }
+    </script>
+    """, unsafe_allow_html=True)
+
 # ── DASHBOARD SHELL ───────────────────────────────────────────────────────
 def home_page() -> None:
     inject_dashboard_css()
+    inject_heartbeat()
     render_sidebar()
 
     page = st.session_state.current_page
