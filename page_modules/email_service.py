@@ -504,7 +504,7 @@ td {{
 <div class="container">
 
     <div class="header">
-        EMIZA WMS - Gate Out Notification
+        L2  - Gate Out Notification
     </div>
 
     <div class="status">
