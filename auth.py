@@ -1,6 +1,15 @@
-# auth.py
-# Phase 1 authentication layer.
-# Maps username to Supabase email identity and handles login/logout.
+"""
+auth.py
+--------
+Phase 1 authentication layer.
+
+UI me user "Username" type karta hai, lekin Supabase Auth email+password pe
+kaam karta hai. Is file ka kaam sirf itna hai: username -> email identity map
+karna aur Supabase se login/logout karana.
+
+Username structure baad me change hoga -> tab sirf `username_to_identity()`
+edit karni padegi, baaki app ko haath lagane ki zarurat nahi.
+"""
 
 from __future__ import annotations
 
@@ -141,3 +150,44 @@ def restore_session() -> bool:
         pass
 
     return False
+
+# =========================================================
+# ACTIVITY TRACKING
+# =========================================================
+
+from datetime import datetime, timezone
+
+def update_activity(username: str) -> None:
+    """Har page render pe last_active update karo."""
+    try:
+        get_client().table("user_sessions").upsert({
+            "username": username,
+            "last_active": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+    except Exception:
+        pass
+
+
+def is_session_expired(username: str, limit_seconds: int = 600) -> bool:
+    """Supabase se check karo — 10 min se zyada idle hai?"""
+    try:
+        res = get_client().table("user_sessions")\
+            .select("last_active")\
+            .eq("username", username)\
+            .single()\
+            .execute()
+
+        if not res.data:
+            return True
+
+        last = datetime.fromisoformat(res.data["last_active"])
+
+        # timezone-aware banana
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+
+        diff = (datetime.now(timezone.utc) - last).total_seconds()
+        return diff > limit_seconds
+
+    except Exception:
+        return False  # error pe logout mat karo
