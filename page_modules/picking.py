@@ -15,7 +15,7 @@ Ordered / Already Picked / Pending Picking / Available Stock
    ↓
 Allocate SKU
    ↓
-Assigned Locations
+Locations with actual stock (from inventory_transactions)
    ↓
 Warehouse + Location + Current Stock
    ↓
@@ -32,8 +32,8 @@ picking table ONLY (no inventory_transactions, no location_master update)
 IMPORTANT:
 - Picking does NOT create inventory_transactions.
 - Picking does NOT modify location_master.qty.
-- Picking is the ONLY outbound stage that needs location_master +
-  inventory_transactions, because it decides WHERE stock will come from.
+- Locations ab inventory_transactions se aati hain — jahan actual stock > 0 ho.
+  location_master assignment check NAHI hota.
 - Because DB stock is never deducted at Picking time, this module tracks
   "committed but not yet shipped" qty per (sku_code, location) GLOBALLY
   (across every Sales Order), so two different orders can never be
@@ -184,9 +184,6 @@ def _clear_picking_caches() -> None:
     _load_committed_picked_by_location.clear()
     _load_out_by_sku_location.clear()
 
-    # Also invalidate Gate Out's own cached progress numbers, so a jump
-    # back to Gate Out right after saving shows fresh Picking progress
-    # immediately instead of a stale cached value.
     try:
 
         from page_modules.gate_out import clear_gate_out_caches
@@ -339,6 +336,49 @@ def _add_picking_item(
 
 
 # =========================================================
+# LOCATIONS WITH ACTUAL STOCK (inventory_transactions based)
+# =========================================================
+
+def _get_locations_with_stock(
+    sku_code: str,
+    location_data: list[dict],
+    transaction_data: list[dict],
+    warehouse: str,
+) -> list[dict]:
+    """
+    inventory_transactions se saari locations dhundo jahan is SKU ka
+    actual stock > 0 hai. location_master assignment check nahi hota.
+    """
+
+    seen_locs: set[str] = set()
+    result: list[dict] = []
+
+    # transaction_data mein saari locations collect karo
+    for tx_row in transaction_data:
+        loc = s(tx_row.get("location"))
+        if loc and loc not in seen_locs:
+            seen_locs.add(loc)
+
+    # location_master mein bhi locations ho sakti hain (opening stock)
+    for loc_row in location_data:
+        loc = s(loc_row.get("location"))
+        if loc and loc not in seen_locs:
+            seen_locs.add(loc)
+
+    # Ab har location ka actual stock check karo
+    for loc in sorted(seen_locs):
+        stock = get_location_stock(loc, location_data, transaction_data)
+        if stock > 0:
+            result.append({
+                "location": loc,
+                "wh_location": warehouse,
+                "stock": stock,
+            })
+
+    return result
+
+
+# =========================================================
 # SAVE PICKING
 # =========================================================
 
@@ -357,8 +397,8 @@ def _save_picking(items: list[dict], picked_by: str) -> tuple[bool, str | None]:
         # FRESH DATA (re-fetch, don't trust session state)
         # -----------------------------------------------
 
-        fresh_transactions = {}
-        fresh_locations = {}
+        fresh_transactions: dict[str, list] = {}
+        fresh_locations: dict[str, list] = {}
 
         for sku_code in unique_skus:
 
@@ -460,13 +500,6 @@ def _save_picking(items: list[dict], picked_by: str) -> tuple[bool, str | None]:
                     f"units are pending, but {fmt_qty(requested_qty)} were requested."
                 )
 
-            # Assigned locations for this SKU
-            assigned_locations = {
-                s(row.get("location"))
-                for row in fresh_locations[sku_code]
-                if s(row.get("location"))
-            }
-
             location_data = fresh_locations[sku_code]
             transaction_data = fresh_transactions[sku_code]
 
@@ -474,10 +507,8 @@ def _save_picking(items: list[dict], picked_by: str) -> tuple[bool, str | None]:
                 dict.fromkeys(item["location"] for item in sku_items)
             )
 
+            # Location assignment check NAHI — sirf available stock check
             for location in unique_locations:
-
-                if location not in assigned_locations:
-                    return False, f"{location} is not assigned to SKU {sku_code}."
 
                 requested_at_location = sum(
                     f(item["qty"]) for item in sku_items if item["location"] == location
@@ -711,28 +742,26 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
             )
             continue
 
-        assigned_location_rows = []
-        seen = set()
+        # ── ACTUAL LOCATIONS WITH STOCK ─────────────────────────────
+        # location_master assignment nahi — inventory_transactions se
+        # actual stock wali locations dhundo
+        warehouse = s(selected_order.get("warehouse"))
+        locations_with_stock = _get_locations_with_stock(
+            sku_code, location_data, transaction_data, warehouse
+        )
 
-        for row in location_data:
-
-            location = s(row.get("location"))
-
-            if not location or location in seen:
-                continue
-
-            seen.add(location)
-            assigned_location_rows.append(row)
-
-        if not assigned_location_rows:
-            st.warning(f"No location is assigned to {sku_code}.")
+        if not locations_with_stock:
+            st.warning(
+                f"⚠️ {sku_code} ka kisi bhi location par stock nahi hai. "
+                f"Pehle Gate In se Putaway karo."
+            )
             continue
 
         with st.expander(f"📍 Allocate {sku_code}", expanded=True):
 
             render_html(
                 '<div style="font-size:0.9rem;font-weight:700;color:#374151;'
-                'margin-bottom:0.7rem;">Assigned Locations</div>'
+                'margin-bottom:0.7rem;">Locations with Stock</div>'
             )
 
             # -------------------------------------------
@@ -754,16 +783,13 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
 
                 allocated_any = False
 
-                for alloc_row in assigned_location_rows:
+                for alloc_row in locations_with_stock:
 
                     if remaining <= 0:
                         break
 
                     alloc_location = s(alloc_row.get("location"))
-
-                    alloc_warehouse = s(alloc_row.get("wh_location")) or s(
-                        selected_order.get("warehouse")
-                    )
+                    alloc_warehouse = s(alloc_row.get("wh_location")) or warehouse
 
                     alloc_available = _available_for_new_picking(
                         sku_code,
@@ -817,13 +843,10 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
             # LOCATION ROWS
             # -------------------------------------------
 
-            for location_index, location_row in enumerate(assigned_location_rows):
+            for location_index, location_row in enumerate(locations_with_stock):
 
                 location = s(location_row.get("location"))
-
-                warehouse = s(location_row.get("wh_location")) or s(
-                    selected_order.get("warehouse")
-                )
+                loc_warehouse = s(location_row.get("wh_location")) or warehouse
 
                 raw_stock = get_location_stock(location, location_data, transaction_data)
 
@@ -849,7 +872,7 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
                         f"""
                         <div class="go-location-card">
                             <div class="go-location-name">📍 {esc(location)}</div>
-                            <div class="go-location-warehouse">🏭 Warehouse: {esc(warehouse) or "-"}</div>
+                            <div class="go-location-warehouse">🏭 Warehouse: {esc(loc_warehouse) or "-"}</div>
                         </div>
                         """
                     )
@@ -937,7 +960,7 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
                                 selected_order_id,
                                 sku_code,
                                 location,
-                                warehouse,
+                                loc_warehouse,
                                 location_qty,
                                 latest_available,
                                 latest_pending,
