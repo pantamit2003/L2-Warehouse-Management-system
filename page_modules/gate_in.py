@@ -14,6 +14,8 @@ Flow:
 
 Only Putaway increases location stock.
 Receiving and QC do NOT touch inventory_transactions.
+
+CHANGE: Putaway mein ab saari locations available hain — SKU se fix nahi.
 """
 
 import json
@@ -437,40 +439,37 @@ def _stage_totals_from_maps(
     }
 
 
-def _clear_stage_caches() -> None:
-    _load_receiving.clear()
-    _load_receiving_all.clear()
-    _load_qc.clear()
-    _load_qc_all.clear()
-    _load_putaway.clear()
-    _load_putaway_all.clear()
-    _load_pos.clear()
-    _load_sku_locations.clear()
-    _load_sku_transactions.clear()
+# ── LOCATION FUNCTIONS ────────────────────────────────────────────────────
 
-
-def _get_po_skus(po_record: dict) -> list[dict]:
-    raw = po_record.get("sku_data")
-    if not raw:
-        return []
+@st.cache_data(ttl=30, show_spinner=False)
+def _load_all_locations() -> list[str]:
+    """
+    Saari warehouse locations load karo — SKU se independent.
+    Putaway mein koi bhi SKU kisi bhi location mein ja sakta hai.
+    """
     try:
-        data = json.loads(raw) if isinstance(raw, str) else raw
-        return data if isinstance(data, list) else []
-    except Exception:
-        return []
-
-
-def _unique_skus(po_skus: list[dict]) -> dict[str, dict]:
-    result = {}
-    for sku in po_skus:
-        code = _s(sku.get("sku_code"))
-        if code:
-            result[code] = sku
-    return result
+        r = (
+            get_client()
+            .table("location_master")
+            .select("location")
+            .order("location")
+            .execute()
+        )
+        seen = set()
+        result = []
+        for row in (r.data or []):
+            loc = _s(row.get("location"))
+            if loc and loc not in seen:
+                seen.add(loc)
+                result.append(loc)
+        return result
+    except Exception as e:
+        raise Exception(f"Location load error: {e}")
 
 
 @st.cache_data(ttl=30, show_spinner=False)
 def _load_sku_locations(sku_code: str) -> list[dict]:
+    """SKU ka current stock location_master se — sirf display ke liye."""
     sku_code = _s(sku_code)
     if not sku_code:
         return []
@@ -504,6 +503,39 @@ def _load_sku_transactions(sku_code: str) -> list[dict]:
         return r.data or []
     except Exception as e:
         raise Exception(f"Inventory Transactions load error: {e}")
+
+
+def _clear_stage_caches() -> None:
+    _load_receiving.clear()
+    _load_receiving_all.clear()
+    _load_qc.clear()
+    _load_qc_all.clear()
+    _load_putaway.clear()
+    _load_putaway_all.clear()
+    _load_pos.clear()
+    _load_sku_locations.clear()
+    _load_sku_transactions.clear()
+    _load_all_locations.clear()  # ← naya
+
+
+def _get_po_skus(po_record: dict) -> list[dict]:
+    raw = po_record.get("sku_data")
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _unique_skus(po_skus: list[dict]) -> dict[str, dict]:
+    result = {}
+    for sku in po_skus:
+        code = _s(sku.get("sku_code"))
+        if code:
+            result[code] = sku
+    return result
 
 
 def _get_opening_stock(location_data: list[dict]) -> pd.DataFrame:
@@ -570,10 +602,6 @@ def _get_location_qty(df: pd.DataFrame, location: str) -> float:
     return float(df.loc[mask, "current_qty"].sum())
 
 
-def _get_location_names(location_data: list[dict]) -> list[str]:
-    return sorted({_s(r.get("location")) for r in location_data if _s(r.get("location"))})
-
-
 def _po_summary(
     po: dict,
     recv_map: dict,
@@ -602,9 +630,6 @@ def _po_summary(
     pending = max(ordered - received, 0)
 
     receiving_done = ordered > 0 and received >= ordered
-    # QC "done" ka matlab: jitna receive hua, utna sab QC ho chuka ho
-    # (pass + reject dono milaake) — sirf qc_passed > 0 dekhna kaafi
-    # nahi tha (isi wajah se QC bina hue hi PO COMPLETED dikh raha tha).
     qc_done = receiving_done and (qc_passed + qc_rejected) >= received
     putaway_done = qc_done and putaway >= qc_passed
 
@@ -741,7 +766,6 @@ def _render_gate_in_process(po: dict) -> None:
     unique_skus = _unique_skus(_get_po_skus(po))
     agg = {"ordered": 0.0, "received": 0.0, "qc_passed": 0.0, "qc_rejected": 0.0, "putaway": 0.0}
 
-    # NOTE (perf): compute totals once per SKU and reuse, instead of recomputing.
     for sku_code, sku in unique_skus.items():
         totals = _stage_totals(po_no, sku_code, _f(sku.get("qty")))
         agg["ordered"] += totals["ordered"]
@@ -775,12 +799,6 @@ def _render_gate_in_process(po: dict) -> None:
 
 
 def _sku_totals_map(po_no: str, sku_list: list[dict]) -> dict:
-    """
-    Compute _stage_totals() exactly once per SKU and cache the result
-    for reuse within a single render pass (summary table + dropdown +
-    default index all used to call this 3x per SKU separately).
-    Pure perf helper — values and logic are unchanged.
-    """
     totals_map = {}
     for sku in sku_list:
         code = _s(sku.get("sku_code"))
@@ -791,9 +809,6 @@ def _sku_totals_map(po_no: str, sku_list: list[dict]) -> dict:
 def _render_receiving(po: dict) -> None:
     po_no = _s(po.get("po_no"))
 
-    # Save click ke turant baad, kisi bhi widget rebuild se PEHLE overlay
-    # dikha do — warna native Streamlit "running" dim bina overlay ke
-    # dikhta hai jab tak neeche wala save-handler nahi chalta.
     if st.session_state.get("gate_in_pending_save") == "receiving":
         overlay = st.empty()
         overlay.markdown(_PROCESSING_OVERLAY_HTML, unsafe_allow_html=True)
@@ -859,7 +874,15 @@ def _render_receiving(po: dict) -> None:
         return
 
     st.markdown('<div class="section-title">📥 Enter Received Qty</div>', unsafe_allow_html=True)
-    receive_qty = st.number_input("Receive Qty", min_value=0.0, max_value=float(pending_qty), value=0.0, step=1.0, key=f"recv_qty_{po_no}_{sku_code}", help=f"Max: {pending_qty:g}")
+    receive_qty = st.number_input(
+        "Receive Qty",
+        min_value=0.0,
+        max_value=float(pending_qty),
+        value=0.0,
+        step=1.0,
+        key=f"recv_qty_{po_no}_{sku_code}",
+        help=f"Max: {pending_qty:g}",
+    )
 
     if st.button("➕ Add Line", key=f"recv_add_{po_no}_{sku_code}"):
         if receive_qty <= 0:
@@ -873,9 +896,7 @@ def _render_receiving(po: dict) -> None:
                 "sku_name": _s(selected_sku.get("sku_name")) or sku_code,
                 "qty": float(receive_qty),
             })
-            for key in list(st.session_state.keys()):
-                if key == f"recv_qty_{po_no}_{sku_code}":
-                    st.session_state.pop(key, None)
+            st.session_state.pop(f"recv_qty_{po_no}_{sku_code}", None)
             st.rerun()
 
     if st.session_state.receiving_lines:
@@ -892,7 +913,6 @@ def _render_receiving(po: dict) -> None:
             if st.button("🗑 Clear Lines", key="recv_clear"):
                 st.session_state.receiving_lines = []
                 st.rerun()
-
         with col_save:
             if st.button("✅ Save Receiving", type="primary", use_container_width=True, key="recv_save"):
                 if not st.session_state.receiving_lines:
@@ -903,12 +923,6 @@ def _render_receiving(po: dict) -> None:
 
 
 def _do_save_receiving(po: dict) -> bool:
-    """
-    Called from the pending-save check at the TOP of _render_receiving,
-    with the overlay already showing. Returns True on success (in which
-    case it triggers a rerun and never actually returns), False on
-    failure (caller clears the overlay and the error stays visible).
-    """
     po_no = _s(po.get("po_no"))
     lines = list(st.session_state.receiving_lines)
 
@@ -934,12 +948,7 @@ def _do_save_receiving(po: dict) -> bool:
 
     st.session_state.receiving_lines = []
     st.session_state.gate_in_success = True
-    # Save ke baad "Gate In Process" (3-card) overview par wapas —
-    # detail screen par hi na raha jaaye.
     st.session_state.gate_in_stage = None
-    # Overlay yahan nahi hataya: agla run apna overlay dikhaye aur
-    # page poora render hone ke baad hi hataye (purani screen ka
-    # flash na aaye) — create_po.py wala pattern.
     st.session_state.gate_in_show_overlay = True
     st.rerun()
     return True
@@ -1047,9 +1056,8 @@ def _render_qc(po: dict) -> None:
                 "rejected_qty": float(rejected_qty),
                 "remark": remark,
             })
-            for key in list(st.session_state.keys()):
-                if key in (f"qc_passed_{po_no}_{sku_code}", f"qc_rejected_{po_no}_{sku_code}", f"qc_remark_{po_no}_{sku_code}"):
-                    st.session_state.pop(key, None)
+            for key in (f"qc_passed_{po_no}_{sku_code}", f"qc_rejected_{po_no}_{sku_code}", f"qc_remark_{po_no}_{sku_code}"):
+                st.session_state.pop(key, None)
             st.rerun()
 
     if st.session_state.qc_lines:
@@ -1067,7 +1075,6 @@ def _render_qc(po: dict) -> None:
             if st.button("🗑 Clear Lines", key="qc_clear"):
                 st.session_state.qc_lines = []
                 st.rerun()
-
         with col_save:
             if st.button("✅ Save QC", type="primary", use_container_width=True, key="qc_save"):
                 if not st.session_state.qc_lines:
@@ -1189,21 +1196,17 @@ def _render_putaway(po: dict) -> None:
     already_staged = sum(_f(line.get("qty")) for line in st.session_state.putaway_lines if _s(line.get("sku_code")) == sku_code)
     remaining_to_stage = max(putaway_pending - already_staged, 0.0)
 
+    # ── CURRENT STOCK — sirf display ke liye (SKU specific) ──
     try:
         location_data = _load_sku_locations(sku_code)
         transaction_data = _load_sku_transactions(sku_code)
     except Exception as e:
-        st.error(f"❌ Location load error: {e}")
+        st.error(f"❌ Stock load error: {e}")
         return
 
     current_stock_df = _get_current_stock(location_data, transaction_data)
-    sku_locations = _get_location_names(location_data)
 
-    if not sku_locations:
-        st.error(f"❌ {_s(selected_sku.get('sku_name')) or sku_code} ke liye Location Master mein koi location assigned nahi hai.")
-        return
-
-    st.markdown('<div class="section-title">📍 Current Location Stock</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📍 Current Location Stock (This SKU)</div>', unsafe_allow_html=True)
     location_stock_df = _get_location_stock(current_stock_df)
     if location_stock_df.empty:
         st.markdown('<div class="stock-empty">ℹ️ Is SKU ka abhi kisi location par stock nahi hai.</div>', unsafe_allow_html=True)
@@ -1217,17 +1220,45 @@ def _render_putaway(po: dict) -> None:
     if remaining_to_stage <= 0:
         st.info("ℹ️ Remaining putaway quantity staging list mein add ho chuki hai. 'Save Putaway' dabao.")
     else:
-        location_display_map = {}
+        # ── SAARI LOCATIONS — koi bhi SKU kisi bhi location mein ──
+        try:
+            all_locations = _load_all_locations()
+        except Exception as e:
+            st.error(f"❌ Location list load error: {e}")
+            return
+
+        if not all_locations:
+            st.error("❌ Location Master mein koi location nahi hai. Pehle locations add karo.")
+            return
+
+        # Current stock of this SKU per location (for display in dropdown)
         location_options = ["— Select Location —"]
-        for location in sku_locations:
-            current_qty = _get_location_qty(current_stock_df, location)
-            display_value = f"{location} — Current: {current_qty:g}"
-            location_display_map[display_value] = location
+        location_display_map = {}
+        for loc in all_locations:
+            current_qty = _get_location_qty(current_stock_df, loc)
+            if current_qty > 0:
+                display_value = f"{loc} — Current: {current_qty:g}"
+            else:
+                display_value = f"{loc} — Empty"
+            location_display_map[display_value] = loc
             location_options.append(display_value)
 
-        selected_location_display = st.selectbox("Select Location", location_options, label_visibility="collapsed", key=f"pta_loc_{po_no}_{sku_code}")
+        selected_location_display = st.selectbox(
+            "Select Location",
+            location_options,
+            label_visibility="collapsed",
+            key=f"pta_loc_{po_no}_{sku_code}",
+        )
 
-        line_qty = st.number_input("Putaway Qty", min_value=0.0, max_value=float(remaining_to_stage), value=0.0, step=1.0, key=f"pta_qty_{po_no}_{sku_code}", help=f"Max: {remaining_to_stage:g}")
+        line_qty = st.number_input(
+            "Putaway Qty",
+            min_value=0.0,
+            max_value=float(remaining_to_stage),
+            value=0.0,
+            step=1.0,
+            key=f"pta_qty_{po_no}_{sku_code}",
+            help=f"Max: {remaining_to_stage:g}",
+        )
 
         if st.button("➕ Add Line", key=f"pta_add_{po_no}_{sku_code}"):
             if selected_location_display == "— Select Location —":
@@ -1245,9 +1276,8 @@ def _render_putaway(po: dict) -> None:
                     "location": selected_location,
                     "qty": float(line_qty),
                 })
-                for key in list(st.session_state.keys()):
-                    if key in (f"pta_loc_{po_no}_{sku_code}", f"pta_qty_{po_no}_{sku_code}"):
-                        st.session_state.pop(key, None)
+                st.session_state.pop(f"pta_loc_{po_no}_{sku_code}", None)
+                st.session_state.pop(f"pta_qty_{po_no}_{sku_code}", None)
                 st.rerun()
 
     if st.session_state.putaway_lines:
@@ -1264,7 +1294,6 @@ def _render_putaway(po: dict) -> None:
             if st.button("🗑 Clear Lines", key="pta_clear"):
                 st.session_state.putaway_lines = []
                 st.rerun()
-
         with col_save:
             if st.button("✅ Save Putaway", type="primary", use_container_width=True, key="pta_save"):
                 if not st.session_state.putaway_lines:
@@ -1283,6 +1312,7 @@ def _do_save_putaway(po: dict) -> bool:
         st.warning("⚠️ Koi line staged nahi hai.")
         return False
 
+    # Qty validation — putaway pending se zyada nahi
     qty_by_sku = {}
     for line in lines:
         sku_code = _s(line.get("sku_code"))
@@ -1299,15 +1329,17 @@ def _do_save_putaway(po: dict) -> bool:
             st.error(f"❌ {sku_code}: Sirf {pending:g} units putaway ke liye available hain (aap {total_qty:g} daalne ki koshish kar rahe ho).")
             return False
 
-    _load_sku_locations.clear()
-    allowed_by_sku = {}
+    # Location validation — sirf yeh check karo ki location master mein exist karta hai
+    try:
+        valid_locations = set(_load_all_locations())
+    except Exception as e:
+        st.error(f"❌ Location validation error: {e}")
+        return False
+
     for line in lines:
-        sku_code = _s(line.get("sku_code"))
-        location = _s(line.get("location"))
-        if sku_code not in allowed_by_sku:
-            allowed_by_sku[sku_code] = _get_location_names(_load_sku_locations(sku_code))
-        if location not in allowed_by_sku[sku_code]:
-            st.error(f"❌ {sku_code}: {location} valid assigned location nahi hai.")
+        loc = _s(line.get("location"))
+        if loc not in valid_locations:
+            st.error(f"❌ '{loc}' valid location nahi hai.")
             return False
 
     try:
@@ -1407,8 +1439,6 @@ def render_gate_in(on_back=None) -> None:
     _do_save_putaway) ne 'gate_in_show_overlay' flag set kiya hai, to
     is naye run ke SHURU mein hi overlay dikha do — body poora render
     (aur uske andar ke DB refetch) hone tak overlay wahi rehta hai.
-    Isse purani/dim/unstyled screen ka flash nahi dikhta
-    (create_po.py wala hi pattern).
     """
     overlay = None
     if st.session_state.pop("gate_in_show_overlay", False):
