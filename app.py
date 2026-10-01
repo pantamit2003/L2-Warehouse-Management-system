@@ -137,11 +137,13 @@ div[data-testid="stForm"] label p {{
 }}
 
 /* ── INPUT ── */
-div[data-testid="stForm"] input,
 div[data-testid="stForm"] [data-baseweb="input"],
-div[data-testid="stForm"] [data-baseweb="base-input"] {{
-    background: rgba(255,255,255,0.10) !important;
-    background-color: rgba(255,255,255,0.10) !important;
+div[data-testid="stForm"] [data-baseweb="base-input"],
+div[data-testid="stForm"] [data-testid="stTextInputRootElement"],
+div[data-testid="stForm"] [data-testid="stTextInput"] > div > div,
+div[data-testid="stForm"] input {{
+    background: #1c2540 !important;
+    background-color: #1c2540 !important;
 }}
 div[data-testid="stForm"] [data-baseweb="input"] {{
     border: 1px solid rgba(255,255,255,0.25) !important;
@@ -158,8 +160,9 @@ div[data-testid="stForm"] input {{
     border: none !important;
 }}
 div[data-testid="stForm"] input::placeholder {{
-    color: rgba(255,255,255,0.45) !important;
-    -webkit-text-fill-color: rgba(255,255,255,0.45) !important;
+    color: rgba(255,255,255,0.5) !important;
+    -webkit-text-fill-color: rgba(255,255,255,0.5) !important;
+    opacity: 1 !important;
 }}
 div[data-testid="stForm"] [data-baseweb="input"]:focus-within {{
     border-color: #3d7aed !important;
