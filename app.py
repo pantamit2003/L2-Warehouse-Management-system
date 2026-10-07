@@ -33,6 +33,17 @@ BG_IMAGE = Path(__file__).parent / "assets" / "bg.jpg"
 # ── INACTIVITY AUTO-LOGOUT ────────────────────────────────
 INACTIVITY_LIMIT = 600 # 10 minutes in seconds
 
+# ── DISPLAY NAMES ─────────────────────────────────────────
+DISPLAY_NAMES = {
+    "fdbwarehouse@swissmilitaryindia.com": "FDB Warehouse",
+    "amit": "Amit",
+}
+
+def get_display_name() -> str:
+    username = st.session_state.get("username", "")
+    return DISPLAY_NAMES.get(username, username)
+
+
 
 def check_session_timeout() -> None:
     username = st.session_state.get("username")
@@ -545,7 +556,7 @@ def render_sidebar() -> None:
     ">{st.session_state.username[0].upper()}</div>
     <div>
       <div style="font-weight:600;font-size:0.82rem;color:#ffffff;">
-        {st.session_state.username}
+        {get_display_name()}
       </div>
       <div style="font-size:0.7rem;color:#94a3b8;">Warehouse Staff</div>
     </div>
@@ -559,7 +570,7 @@ def page_home() -> None:
     st.markdown(f"""
 <div style="margin-bottom:1.6rem;">
   <div style="font-size:1.4rem;font-weight:700;color:#111827;">
-    Welcome back, {st.session_state.username} 👋
+    Welcome back, {get_display_name()} 👋
   </div>
   <div style="color:#6b7280;font-size:0.88rem;margin-top:0.2rem;">
     Here's what's happening in the warehouse today.
