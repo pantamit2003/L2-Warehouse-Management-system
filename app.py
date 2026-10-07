@@ -688,7 +688,7 @@ def home_page() -> None:
 
     if page == "Home":
         render_home_dashboard(
-            username=st.session_state.username,
+            username=get_display_name(),
             on_navigate=lambda p: st.session_state.update(
                 current_page=p
             ),
