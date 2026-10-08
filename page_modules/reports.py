@@ -36,18 +36,24 @@ def _f(val) -> float:
         return 0.0
 
 
+# =========================================================
+# GET EARLIEST DATA DATE
+# =========================================================
+
+@st.cache_data(ttl=300, show_spinner=False)
 def _get_first_data_date(report_type: str) -> date:
     """
-    Get the earliest available created_at date from Supabase
-    for the selected report type.
+    Returns the earliest created_at date available in Supabase
+    for the selected report.
     """
 
     try:
         client = get_client()
 
         # -----------------------------------------------------
-        # Select table according to report
+        # Select correct table
         # -----------------------------------------------------
+
         if report_type == "PO Report":
             table = "po_master"
 
@@ -64,8 +70,9 @@ def _get_first_data_date(report_type: str) -> date:
             return date.today()
 
         # -----------------------------------------------------
-        # Base query
+        # Build query
         # -----------------------------------------------------
+
         query = (
             client
             .table(table)
@@ -75,13 +82,24 @@ def _get_first_data_date(report_type: str) -> date:
         )
 
         # -----------------------------------------------------
-        # Gate In / Gate Out filter
+        # Gate In / Gate Out specific filtering
         # -----------------------------------------------------
+
         if report_type == "Gate In Report":
-            query = query.eq("transaction_type", "IN")
+            query = query.eq(
+                "transaction_type",
+                "IN"
+            )
 
         elif report_type == "Gate Out Report":
-            query = query.eq("transaction_type", "OUT")
+            query = query.eq(
+                "transaction_type",
+                "OUT"
+            )
+
+        # -----------------------------------------------------
+        # Execute
+        # -----------------------------------------------------
 
         res = query.execute()
 
@@ -95,7 +113,9 @@ def _get_first_data_date(report_type: str) -> date:
         if not created_at:
             return date.today()
 
-        return pd.to_datetime(created_at).date()
+        return pd.to_datetime(
+            created_at
+        ).date()
 
     except Exception:
         return date.today()
@@ -205,10 +225,15 @@ def _section(icon: str, title: str) -> None:
 
 
 def _label(text: str, required: bool = False) -> None:
-    star = '<span class="star">⭐</span> ' if required else ""
+    star = (
+        '<span class="star">⭐</span> '
+        if required else ""
+    )
 
     st.markdown(
-        f'<div class="rpt-label">{star}{text}</div>',
+        f'<div class="rpt-label">'
+        f'{star}{text}'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -220,7 +245,11 @@ def _label(text: str, required: bool = False) -> None:
 def _to_excel(df: pd.DataFrame) -> bytes:
     buf = io.BytesIO()
 
-    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+    with pd.ExcelWriter(
+        buf,
+        engine="openpyxl"
+    ) as writer:
+
         df.to_excel(
             writer,
             index=False,
@@ -254,9 +283,18 @@ def _load_po_report(
                 "seller_po,invoice_type,remarks,"
                 "sku_data,created_at"
             )
-            .gte("created_at", date_from)
-            .lte("created_at", date_to + "T23:59:59")
-            .order("created_at", desc=True)
+            .gte(
+                "created_at",
+                date_from
+            )
+            .lte(
+                "created_at",
+                date_to + "T23:59:59"
+            )
+            .order(
+                "created_at",
+                desc=True
+            )
             .execute()
         )
 
@@ -269,90 +307,188 @@ def _load_po_report(
 
         for r in rows:
 
-            sku_data = r.get("sku_data") or []
+            sku_data = r.get(
+                "sku_data"
+            ) or []
 
-            # -----------------------------------------------------
-            # sku_data kabhi JSON string ke form mein aa sakta hai
-            # -----------------------------------------------------
+            # -------------------------------------------------
+            # sku_data may be JSON string
+            # -------------------------------------------------
 
-            if isinstance(sku_data, str):
+            if isinstance(
+                sku_data,
+                str
+            ):
 
                 try:
-                    sku_data = json.loads(sku_data)
+                    sku_data = json.loads(
+                        sku_data
+                    )
 
                 except Exception:
                     sku_data = []
 
-            # -----------------------------------------------------
-            # Safety: agar single dict aa gaya ho
-            # -----------------------------------------------------
+            # -------------------------------------------------
+            # Single dict safety
+            # -------------------------------------------------
 
-            if isinstance(sku_data, dict):
+            if isinstance(
+                sku_data,
+                dict
+            ):
                 sku_data = [sku_data]
 
-            # -----------------------------------------------------
-            # Safety: invalid format ho toh empty list
-            # -----------------------------------------------------
+            # -------------------------------------------------
+            # Invalid format safety
+            # -------------------------------------------------
 
-            if not isinstance(sku_data, list):
+            if not isinstance(
+                sku_data,
+                list
+            ):
                 sku_data = []
 
-            # -----------------------------------------------------
+            # -------------------------------------------------
             # PO with no SKU
-            # -----------------------------------------------------
+            # -------------------------------------------------
 
             if not sku_data:
 
                 records.append({
-                    "PO No":        _s(r.get("po_no")),
-                    "Vendor":       _s(r.get("vendor")),
-                    "Warehouse":    _s(r.get("warehouse")),
-                    "PO Type":      _s(r.get("po_type")),
-                    "PO Date":      _s(r.get("po_date")),
-                    "Exp Date":     _s(r.get("exp_date")),
-                    "Transport":    _s(r.get("transport")),
-                    "Seller PO":    _s(r.get("seller_po")),
-                    "Invoice Type": _s(r.get("invoice_type")),
-                    "Remarks":      _s(r.get("remarks")),
-                    "SKU Code":     "",
-                    "SKU Name":     "",
-                    "Ordered Qty":  "",
-                    "Created At":   _s(r.get("created_at"))[:19],
+                    "PO No":
+                        _s(r.get("po_no")),
+
+                    "Vendor":
+                        _s(r.get("vendor")),
+
+                    "Warehouse":
+                        _s(r.get("warehouse")),
+
+                    "PO Type":
+                        _s(r.get("po_type")),
+
+                    "PO Date":
+                        _s(r.get("po_date")),
+
+                    "Exp Date":
+                        _s(r.get("exp_date")),
+
+                    "Transport":
+                        _s(r.get("transport")),
+
+                    "Seller PO":
+                        _s(r.get("seller_po")),
+
+                    "Invoice Type":
+                        _s(r.get("invoice_type")),
+
+                    "Remarks":
+                        _s(r.get("remarks")),
+
+                    "SKU Code":
+                        "",
+
+                    "SKU Name":
+                        "",
+
+                    "Ordered Qty":
+                        "",
+
+                    "Created At":
+                        _s(
+                            r.get(
+                                "created_at"
+                            )
+                        )[:19],
                 })
 
-            # -----------------------------------------------------
+            # -------------------------------------------------
             # SKU rows
-            # -----------------------------------------------------
+            # -------------------------------------------------
 
             else:
 
                 for sku in sku_data:
 
-                    if not isinstance(sku, dict):
+                    if not isinstance(
+                        sku,
+                        dict
+                    ):
                         continue
 
                     records.append({
-                        "PO No":        _s(r.get("po_no")),
-                        "Vendor":       _s(r.get("vendor")),
-                        "Warehouse":    _s(r.get("warehouse")),
-                        "PO Type":      _s(r.get("po_type")),
-                        "PO Date":      _s(r.get("po_date")),
-                        "Exp Date":     _s(r.get("exp_date")),
-                        "Transport":    _s(r.get("transport")),
-                        "Seller PO":    _s(r.get("seller_po")),
-                        "Invoice Type": _s(r.get("invoice_type")),
-                        "Remarks":      _s(r.get("remarks")),
-                        "SKU Code":     _s(sku.get("sku_code")),
-                        "SKU Name":     _s(sku.get("sku_name")),
-                        "Ordered Qty":  _f(sku.get("qty")),
-                        "Created At":   _s(r.get("created_at"))[:19],
+                        "PO No":
+                            _s(r.get("po_no")),
+
+                        "Vendor":
+                            _s(r.get("vendor")),
+
+                        "Warehouse":
+                            _s(r.get("warehouse")),
+
+                        "PO Type":
+                            _s(r.get("po_type")),
+
+                        "PO Date":
+                            _s(r.get("po_date")),
+
+                        "Exp Date":
+                            _s(r.get("exp_date")),
+
+                        "Transport":
+                            _s(r.get("transport")),
+
+                        "Seller PO":
+                            _s(r.get("seller_po")),
+
+                        "Invoice Type":
+                            _s(
+                                r.get(
+                                    "invoice_type"
+                                )
+                            ),
+
+                        "Remarks":
+                            _s(r.get("remarks")),
+
+                        "SKU Code":
+                            _s(
+                                sku.get(
+                                    "sku_code"
+                                )
+                            ),
+
+                        "SKU Name":
+                            _s(
+                                sku.get(
+                                    "sku_name"
+                                )
+                            ),
+
+                        "Ordered Qty":
+                            _f(
+                                sku.get(
+                                    "qty"
+                                )
+                            ),
+
+                        "Created At":
+                            _s(
+                                r.get(
+                                    "created_at"
+                                )
+                            )[:19],
                     })
 
-        return pd.DataFrame(records)
+        return pd.DataFrame(
+            records
+        )
 
     except Exception as e:
 
-        st.error(f"PO Report load error: {e}")
+        st.error(
+            f"PO Report load error: {e}"
+        )
 
         return pd.DataFrame()
 
@@ -369,14 +505,29 @@ def _load_gate_in_report(
 
         res = (
             get_client()
-            .table("inventory_transactions")
-            .select(
-                "id,po_number,sku,location,qty,created_at"
+            .table(
+                "inventory_transactions"
             )
-            .eq("transaction_type", "IN")
-            .gte("created_at", date_from)
-            .lte("created_at", date_to + "T23:59:59")
-            .order("created_at", desc=True)
+            .select(
+                "id,po_number,sku,"
+                "location,qty,created_at"
+            )
+            .eq(
+                "transaction_type",
+                "IN"
+            )
+            .gte(
+                "created_at",
+                date_from
+            )
+            .lte(
+                "created_at",
+                date_to + "T23:59:59"
+            )
+            .order(
+                "created_at",
+                desc=True
+            )
             .execute()
         )
 
@@ -387,19 +538,49 @@ def _load_gate_in_report(
 
         return pd.DataFrame([
             {
-                "Txn ID":     r.get("id"),
-                "PO Number":  _s(r.get("po_number")),
-                "SKU":        _s(r.get("sku")),
-                "Location":   _s(r.get("location")),
-                "Qty":        _f(r.get("qty")),
-                "Created At": _s(r.get("created_at"))[:19],
+                "Txn ID":
+                    r.get("id"),
+
+                "PO Number":
+                    _s(
+                        r.get(
+                            "po_number"
+                        )
+                    ),
+
+                "SKU":
+                    _s(
+                        r.get("sku")
+                    ),
+
+                "Location":
+                    _s(
+                        r.get(
+                            "location"
+                        )
+                    ),
+
+                "Qty":
+                    _f(
+                        r.get("qty")
+                    ),
+
+                "Created At":
+                    _s(
+                        r.get(
+                            "created_at"
+                        )
+                    )[:19],
             }
+
             for r in rows
         ])
 
     except Exception as e:
 
-        st.error(f"Gate In Report load error: {e}")
+        st.error(
+            f"Gate In Report load error: {e}"
+        )
 
         return pd.DataFrame()
 
@@ -416,14 +597,29 @@ def _load_gate_out_report(
 
         res = (
             get_client()
-            .table("inventory_transactions")
-            .select(
-                "id,po_number,sku,location,qty,created_at"
+            .table(
+                "inventory_transactions"
             )
-            .eq("transaction_type", "OUT")
-            .gte("created_at", date_from)
-            .lte("created_at", date_to + "T23:59:59")
-            .order("created_at", desc=True)
+            .select(
+                "id,po_number,sku,"
+                "location,qty,created_at"
+            )
+            .eq(
+                "transaction_type",
+                "OUT"
+            )
+            .gte(
+                "created_at",
+                date_from
+            )
+            .lte(
+                "created_at",
+                date_to + "T23:59:59"
+            )
+            .order(
+                "created_at",
+                desc=True
+            )
             .execute()
         )
 
@@ -434,19 +630,49 @@ def _load_gate_out_report(
 
         return pd.DataFrame([
             {
-                "Txn ID":     r.get("id"),
-                "Reference":  _s(r.get("po_number")),
-                "SKU":        _s(r.get("sku")),
-                "Location":   _s(r.get("location")),
-                "Qty":        _f(r.get("qty")),
-                "Created At": _s(r.get("created_at"))[:19],
+                "Txn ID":
+                    r.get("id"),
+
+                "Reference":
+                    _s(
+                        r.get(
+                            "po_number"
+                        )
+                    ),
+
+                "SKU":
+                    _s(
+                        r.get("sku")
+                    ),
+
+                "Location":
+                    _s(
+                        r.get(
+                            "location"
+                        )
+                    ),
+
+                "Qty":
+                    _f(
+                        r.get("qty")
+                    ),
+
+                "Created At":
+                    _s(
+                        r.get(
+                            "created_at"
+                        )
+                    )[:19],
             }
+
             for r in rows
         ])
 
     except Exception as e:
 
-        st.error(f"Gate Out Report load error: {e}")
+        st.error(
+            f"Gate Out Report load error: {e}"
+        )
 
         return pd.DataFrame()
 
@@ -469,12 +695,22 @@ def _load_so_report(
             get_client()
             .table("sales_orders")
             .select(
-                "id,order_id,warehouse,customer_name,"
-                "phone,email,order_type,status,created_at"
+                "id,order_id,warehouse,"
+                "customer_name,phone,email,"
+                "order_type,status,created_at"
             )
-            .gte("created_at", date_from)
-            .lte("created_at", date_to + "T23:59:59")
-            .order("created_at", desc=True)
+            .gte(
+                "created_at",
+                date_from
+            )
+            .lte(
+                "created_at",
+                date_to + "T23:59:59"
+            )
+            .order(
+                "created_at",
+                desc=True
+            )
             .execute()
         )
 
@@ -483,7 +719,10 @@ def _load_so_report(
         if not so_rows:
             return pd.DataFrame()
 
-        so_ids = [r["id"] for r in so_rows]
+        so_ids = [
+            r["id"]
+            for r in so_rows
+        ]
 
         so_map = {
             r["id"]: r
@@ -496,43 +735,114 @@ def _load_so_report(
 
         items_res = (
             get_client()
-            .table("sales_order_items")
-            .select(
-                "sales_order_id,sku_code,quantity,"
-                "mrp,selling_price,discount_amount,"
-                "shelf_life_type,is_non_sellable,zone"
+            .table(
+                "sales_order_items"
             )
-            .in_("sales_order_id", so_ids)
+            .select(
+                "sales_order_id,"
+                "sku_code,quantity,"
+                "mrp,selling_price,"
+                "discount_amount,"
+                "shelf_life_type,"
+                "is_non_sellable,"
+                "zone"
+            )
+            .in_(
+                "sales_order_id",
+                so_ids
+            )
             .execute()
         )
 
-        item_rows = items_res.data or []
+        item_rows = (
+            items_res.data or []
+        )
 
         if not item_rows:
 
-            # SOs with no items
-
             return pd.DataFrame([
                 {
-                    "Order ID":      _s(so_map[sid]["order_id"]),
-                    "Warehouse":     _s(so_map[sid]["warehouse"]),
-                    "Customer":      _s(so_map[sid]["customer_name"]),
-                    "Phone":         _s(so_map[sid]["phone"]),
-                    "Email":         _s(so_map[sid]["email"]),
-                    "Order Type":    _s(so_map[sid]["order_type"]),
-                    "Status":        _s(so_map[sid]["status"]),
-                    "SKU Code":      "",
-                    "Quantity":      "",
-                    "MRP":           "",
-                    "Selling Price": "",
-                    "Discount":      "",
-                    "Shelf Life":    "",
-                    "Non Sellable":  "",
-                    "Zone":          "",
-                    "Created At":    _s(
-                        so_map[sid]["created_at"]
-                    )[:19],
+                    "Order ID":
+                        _s(
+                            so_map[sid][
+                                "order_id"
+                            ]
+                        ),
+
+                    "Warehouse":
+                        _s(
+                            so_map[sid][
+                                "warehouse"
+                            ]
+                        ),
+
+                    "Customer":
+                        _s(
+                            so_map[sid][
+                                "customer_name"
+                            ]
+                        ),
+
+                    "Phone":
+                        _s(
+                            so_map[sid][
+                                "phone"
+                            ]
+                        ),
+
+                    "Email":
+                        _s(
+                            so_map[sid][
+                                "email"
+                            ]
+                        ),
+
+                    "Order Type":
+                        _s(
+                            so_map[sid][
+                                "order_type"
+                            ]
+                        ),
+
+                    "Status":
+                        _s(
+                            so_map[sid][
+                                "status"
+                            ]
+                        ),
+
+                    "SKU Code":
+                        "",
+
+                    "Quantity":
+                        "",
+
+                    "MRP":
+                        "",
+
+                    "Selling Price":
+                        "",
+
+                    "Discount":
+                        "",
+
+                    "Shelf Life":
+                        "",
+
+                    "Non Sellable":
+                        "",
+
+                    "Zone":
+                        "",
+
+                    "Created At":
+                        _s(
+                            so_map[sid][
+                                "created_at"
+                            ]
+                        )[:19],
                 }
+
                 for sid in so_ids
             ])
 
@@ -540,34 +850,138 @@ def _load_so_report(
 
         for item in item_rows:
 
-            sid = item["sales_order_id"]
+            sid = item[
+                "sales_order_id"
+            ]
 
-            so = so_map.get(sid, {})
+            so = so_map.get(
+                sid,
+                {}
+            )
 
             records.append({
-                "Order ID":      _s(so.get("order_id")),
-                "Warehouse":     _s(so.get("warehouse")),
-                "Customer":      _s(so.get("customer_name")),
-                "Phone":         _s(so.get("phone")),
-                "Email":         _s(so.get("email")),
-                "Order Type":    _s(so.get("order_type")),
-                "Status":        _s(so.get("status")),
-                "SKU Code":      _s(item.get("sku_code")),
-                "Quantity":      _f(item.get("quantity")),
-                "MRP":           _f(item.get("mrp")),
-                "Selling Price": _f(item.get("selling_price")),
-                "Discount":      _f(item.get("discount_amount")),
-                "Shelf Life":    _s(item.get("shelf_life_type")),
-                "Non Sellable":  _s(item.get("is_non_sellable")),
-                "Zone":          _s(item.get("zone")),
-                "Created At":    _s(so.get("created_at"))[:19],
+                "Order ID":
+                    _s(
+                        so.get(
+                            "order_id"
+                        )
+                    ),
+
+                "Warehouse":
+                    _s(
+                        so.get(
+                            "warehouse"
+                        )
+                    ),
+
+                "Customer":
+                    _s(
+                        so.get(
+                            "customer_name"
+                        )
+                    ),
+
+                "Phone":
+                    _s(
+                        so.get(
+                            "phone"
+                        )
+                    ),
+
+                "Email":
+                    _s(
+                        so.get(
+                            "email"
+                        )
+                    ),
+
+                "Order Type":
+                    _s(
+                        so.get(
+                            "order_type"
+                        )
+                    ),
+
+                "Status":
+                    _s(
+                        so.get(
+                            "status"
+                        )
+                    ),
+
+                "SKU Code":
+                    _s(
+                        item.get(
+                            "sku_code"
+                        )
+                    ),
+
+                "Quantity":
+                    _f(
+                        item.get(
+                            "quantity"
+                        )
+                    ),
+
+                "MRP":
+                    _f(
+                        item.get(
+                            "mrp"
+                        )
+                    ),
+
+                "Selling Price":
+                    _f(
+                        item.get(
+                            "selling_price"
+                        )
+                    ),
+
+                "Discount":
+                    _f(
+                        item.get(
+                            "discount_amount"
+                        )
+                    ),
+
+                "Shelf Life":
+                    _s(
+                        item.get(
+                            "shelf_life_type"
+                        )
+                    ),
+
+                "Non Sellable":
+                    _s(
+                        item.get(
+                            "is_non_sellable"
+                        )
+                    ),
+
+                "Zone":
+                    _s(
+                        item.get(
+                            "zone"
+                        )
+                    ),
+
+                "Created At":
+                    _s(
+                        so.get(
+                            "created_at"
+                        )
+                    )[:19],
             })
 
-        return pd.DataFrame(records)
+        return pd.DataFrame(
+            records
+        )
 
     except Exception as e:
 
-        st.error(f"Sales Order Report load error: {e}")
+        st.error(
+            f"Sales Order Report load error: {e}"
+        )
 
         return pd.DataFrame()
 
@@ -585,12 +999,18 @@ def _load_inventory_report() -> pd.DataFrame:
 
         loc_res = (
             get_client()
-            .table("location_master")
-            .select("location,sku,qty")
+            .table(
+                "location_master"
+            )
+            .select(
+                "location,sku,qty"
+            )
             .execute()
         )
 
-        loc_rows = loc_res.data or []
+        loc_rows = (
+            loc_res.data or []
+        )
 
         # -----------------------------------------------------
         # All transactions
@@ -598,41 +1018,71 @@ def _load_inventory_report() -> pd.DataFrame:
 
         txn_res = (
             get_client()
-            .table("inventory_transactions")
+            .table(
+                "inventory_transactions"
+            )
             .select(
-                "transaction_type,sku,location,qty"
+                "transaction_type,"
+                "sku,location,qty"
             )
             .execute()
         )
 
-        txn_rows = txn_res.data or []
+        txn_rows = (
+            txn_res.data or []
+        )
 
         if not loc_rows and not txn_rows:
             return pd.DataFrame()
 
         # -----------------------------------------------------
-        # Opening stock df
+        # Opening stock
         # -----------------------------------------------------
 
         opening_records = [
             {
-                "sku":      _s(r.get("sku")),
-                "location": _s(r.get("location")),
-                "opening":  _f(r.get("qty")),
+                "sku":
+                    _s(
+                        r.get("sku")
+                    ),
+
+                "location":
+                    _s(
+                        r.get("location")
+                    ),
+
+                "opening":
+                    _f(
+                        r.get("qty")
+                    ),
             }
+
             for r in loc_rows
-            if _s(r.get("sku"))
-            and _s(r.get("location"))
+
+            if _s(
+                r.get("sku")
+            )
+
+            and _s(
+                r.get("location")
+            )
         ]
 
         opening_df = (
-            pd.DataFrame(opening_records)
+            pd.DataFrame(
+                opening_records
+            )
             .groupby(
-                ["sku", "location"],
+                [
+                    "sku",
+                    "location"
+                ],
                 as_index=False
             )["opening"]
             .sum()
+
             if opening_records
+
             else pd.DataFrame(
                 columns=[
                     "sku",
@@ -651,12 +1101,22 @@ def _load_inventory_report() -> pd.DataFrame:
 
         for r in txn_rows:
 
-            sku = _s(r.get("sku"))
-            loc = _s(r.get("location"))
-            qty = _f(r.get("qty"))
+            sku = _s(
+                r.get("sku")
+            )
+
+            loc = _s(
+                r.get("location")
+            )
+
+            qty = _f(
+                r.get("qty")
+            )
 
             ttype = _s(
-                r.get("transaction_type")
+                r.get(
+                    "transaction_type"
+                )
             ).upper()
 
             if not sku or not loc:
@@ -665,27 +1125,44 @@ def _load_inventory_report() -> pd.DataFrame:
             if ttype == "IN":
 
                 in_records.append({
-                    "sku": sku,
-                    "location": loc,
-                    "in_qty": qty
+                    "sku":
+                        sku,
+
+                    "location":
+                        loc,
+
+                    "in_qty":
+                        qty,
                 })
 
             elif ttype == "OUT":
 
                 out_records.append({
-                    "sku": sku,
-                    "location": loc,
-                    "out_qty": qty
+                    "sku":
+                        sku,
+
+                    "location":
+                        loc,
+
+                    "out_qty":
+                        qty,
                 })
 
         in_df = (
-            pd.DataFrame(in_records)
+            pd.DataFrame(
+                in_records
+            )
             .groupby(
-                ["sku", "location"],
+                [
+                    "sku",
+                    "location"
+                ],
                 as_index=False
             )["in_qty"]
             .sum()
+
             if in_records
+
             else pd.DataFrame(
                 columns=[
                     "sku",
@@ -696,13 +1173,20 @@ def _load_inventory_report() -> pd.DataFrame:
         )
 
         out_df = (
-            pd.DataFrame(out_records)
+            pd.DataFrame(
+                out_records
+            )
             .groupby(
-                ["sku", "location"],
+                [
+                    "sku",
+                    "location"
+                ],
                 as_index=False
             )["out_qty"]
             .sum()
+
             if out_records
+
             else pd.DataFrame(
                 columns=[
                     "sku",
@@ -713,20 +1197,26 @@ def _load_inventory_report() -> pd.DataFrame:
         )
 
         # -----------------------------------------------------
-        # Merge all
+        # Merge
         # -----------------------------------------------------
 
         df = opening_df.copy()
 
         df = df.merge(
             in_df,
-            on=["sku", "location"],
+            on=[
+                "sku",
+                "location"
+            ],
             how="outer"
         )
 
         df = df.merge(
             out_df,
-            on=["sku", "location"],
+            on=[
+                "sku",
+                "location"
+            ],
             how="outer"
         )
 
@@ -739,28 +1229,46 @@ def _load_inventory_report() -> pd.DataFrame:
         )
 
         # -----------------------------------------------------
-        # Remove zero stock rows
+        # Remove zero stock
         # -----------------------------------------------------
 
         df = df[
             df["current_qty"] > 0
         ].copy()
 
-        df = df.rename(columns={
-            "sku":         "SKU",
-            "location":    "Location",
-            "opening":     "Opening Qty",
-            "in_qty":      "Total IN",
-            "out_qty":     "Total OUT",
-            "current_qty": "Current Qty",
-        })
+        df = df.rename(
+            columns={
+                "sku":
+                    "SKU",
+
+                "location":
+                    "Location",
+
+                "opening":
+                    "Opening Qty",
+
+                "in_qty":
+                    "Total IN",
+
+                "out_qty":
+                    "Total OUT",
+
+                "current_qty":
+                    "Current Qty",
+            }
+        )
 
         return (
             df
             .sort_values(
-                ["SKU", "Location"]
+                [
+                    "SKU",
+                    "Location"
+                ]
             )
-            .reset_index(drop=True)
+            .reset_index(
+                drop=True
+            )
         )
 
     except Exception as e:
@@ -778,8 +1286,8 @@ def _load_inventory_report() -> pd.DataFrame:
 
 def _on_report_type_change() -> None:
     """
-    Reset date range and old results
-    when report type changes.
+    Reset date range and previous report
+    whenever report type changes.
     """
 
     st.session_state.pop(
@@ -802,16 +1310,22 @@ def _on_report_type_change() -> None:
 # MAIN PAGE
 # =========================================================
 
-def render_reports(on_back=None) -> None:
+def render_reports(
+    on_back=None
+) -> None:
 
     st.markdown(
         _CSS,
         unsafe_allow_html=True
     )
 
-    # ── Title + Back ──
+    # =========================================================
+    # TITLE + BACK
+    # =========================================================
 
-    c1, c2 = st.columns([8, 2])
+    c1, c2 = st.columns(
+        [8, 2]
+    )
 
     with c1:
 
@@ -852,7 +1366,13 @@ def render_reports(on_back=None) -> None:
         "Current Inventory",
     ]
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(
+        4
+    )
+
+    # =========================================================
+    # REPORT TYPE
+    # =========================================================
 
     with c1:
 
@@ -870,7 +1390,7 @@ def render_reports(on_back=None) -> None:
         )
 
     # =========================================================
-    # DATE RANGE FILTER
+    # DATE RANGE
     # =========================================================
 
     date_from = None
@@ -882,18 +1402,20 @@ def render_reports(on_back=None) -> None:
     ):
 
         # -----------------------------------------------------
-        # Find first available date from Supabase
+        # Get earliest date from Supabase
         # -----------------------------------------------------
 
-        first_data_date = _get_first_data_date(
-            report_type
+        first_data_date = (
+            _get_first_data_date(
+                report_type
+            )
         )
 
         today = date.today()
 
         # -----------------------------------------------------
-        # Default:
-        # First available date → Today
+        # Default range
+        # Earliest data → Today
         # -----------------------------------------------------
 
         default_range = (
@@ -910,66 +1432,68 @@ def render_reports(on_back=None) -> None:
 
             selected_range = st.date_input(
                 "select_date_range",
+
                 value=default_range,
+
                 min_value=first_data_date,
+
                 max_value=today,
+
                 key="rpt_date_range",
+
                 format="DD/MM/YYYY",
+
                 label_visibility="collapsed",
             )
 
         # -----------------------------------------------------
-        # Streamlit date range handling
+        # Read selected range
         # -----------------------------------------------------
 
-        if (
-            isinstance(selected_range, tuple)
-            and len(selected_range) == 2
+        if isinstance(
+            selected_range,
+            tuple
         ):
 
-            date_from = selected_range[0]
-            date_to = selected_range[1]
+            if len(
+                selected_range
+            ) == 2:
 
-        elif (
-            isinstance(selected_range, tuple)
-            and len(selected_range) == 1
-        ):
+                date_from = (
+                    selected_range[0]
+                )
 
-            date_from = selected_range[0]
-            date_to = selected_range[0]
+                date_to = (
+                    selected_range[1]
+                )
+
+            elif len(
+                selected_range
+            ) == 1:
+
+                date_from = (
+                    selected_range[0]
+                )
+
+                date_to = (
+                    selected_range[0]
+                )
+
+            else:
+
+                date_from = (
+                    first_data_date
+                )
+
+                date_to = today
 
         else:
 
-            date_from = first_data_date
+            date_from = (
+                first_data_date
+            )
+
             date_to = today
-
-        # -----------------------------------------------------
-        # Display selected range
-        # -----------------------------------------------------
-
-        with c3:
-
-            _label(
-                "Selected Date Range"
-            )
-
-            st.markdown(
-                f"""
-                <div style="
-                    background:#ffffff;
-                    border:1px solid #d1d5db;
-                    border-radius:8px;
-                    padding:9px 12px;
-                    font-size:0.88rem;
-                    color:#374151;
-                ">
-                    {date_from.strftime("%d %b %Y")}
-                    &nbsp; → &nbsp;
-                    {date_to.strftime("%d %b %Y")}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
 
     # =========================================================
     # GENERATE BUTTON
@@ -985,7 +1509,8 @@ def render_reports(on_back=None) -> None:
             type="primary",
             use_container_width=True,
             disabled=(
-                report_type == "— Select Report —"
+                report_type
+                == "— Select Report —"
             ),
         )
 
@@ -998,12 +1523,20 @@ def render_reports(on_back=None) -> None:
         st.markdown(
             '<div class="rpt-empty">'
             '<div style="font-size:2.5rem;'
-            'margin-bottom:0.6rem">📊</div>'
+            'margin-bottom:0.6rem">'
+            '📊'
+            '</div>'
+
             '<div style="font-weight:600;'
-            'font-size:0.95rem;color:#6b7280">'
-            'Select a report type to get started'
+            'font-size:0.95rem;'
+            'color:#6b7280">'
+
+            'Select a report type '
+            'to get started'
+
             '</div>'
             '</div>',
+
             unsafe_allow_html=True,
         )
 
@@ -1015,11 +1548,13 @@ def render_reports(on_back=None) -> None:
 
     if (
         not generate
-        and "rpt_df" not in st.session_state
+        and "rpt_df"
+        not in st.session_state
     ):
 
         st.info(
-            "👆 Select filters and click Generate Report."
+            "👆 Select filters and "
+            "click Generate Report."
         )
 
         return
@@ -1037,8 +1572,13 @@ def render_reports(on_back=None) -> None:
 
         else:
 
-            df_from = str(date_from)
-            df_to = str(date_to)
+            df_from = str(
+                date_from
+            )
+
+            df_to = str(
+                date_to
+            )
 
         with st.spinner(
             "Generating report..."
@@ -1097,21 +1637,38 @@ def render_reports(on_back=None) -> None:
 
     _section(
         "📋",
-        f"REPORT — "
-        f"{st.session_state.get('rpt_title', '')}"
+        "REPORT — "
+        + st.session_state.get(
+            "rpt_title",
+            ""
+        )
     )
+
+    # =========================================================
+    # EMPTY
+    # =========================================================
 
     if df.empty:
 
         st.markdown(
             '<div class="rpt-empty">'
+
             '<div style="font-size:2rem;'
-            'margin-bottom:0.5rem">📭</div>'
-            '<div style="font-weight:600;'
-            'color:#6b7280;font-size:0.9rem">'
-            'No data found for selected filters'
+            'margin-bottom:0.5rem">'
+            '📭'
             '</div>'
+
+            '<div style="font-weight:600;'
+            'color:#6b7280;'
+            'font-size:0.9rem">'
+
+            'No data found for '
+            'selected filters'
+
+            '</div>'
+
             '</div>',
+
             unsafe_allow_html=True,
         )
 
@@ -1147,33 +1704,57 @@ def render_reports(on_back=None) -> None:
         [2, 2, 6]
     )
 
+    report_filename = _s(
+        st.session_state.get(
+            "rpt_title",
+            "report"
+        )
+    ).replace(
+        " ",
+        "_"
+    )
+
+    # ---------------------------------------------------------
+    # CSV
+    # ---------------------------------------------------------
+
     with c1:
 
         st.download_button(
             label="⬇ Download CSV",
+
             data=df.to_csv(
                 index=False
             ).encode("utf-8"),
+
             file_name=(
-                f"{_s(st.session_state.get('rpt_title', 'report'))}"
-                f".replace(' ','_').csv"
+                f"{report_filename}.csv"
             ),
+
             mime="text/csv",
+
             use_container_width=True,
         )
+
+    # ---------------------------------------------------------
+    # Excel
+    # ---------------------------------------------------------
 
     with c2:
 
         st.download_button(
             label="⬇ Download Excel",
+
             data=_to_excel(df),
+
             file_name=(
-                f"{_s(st.session_state.get('rpt_title', 'report'))}"
-                f".replace(' ','_').xlsx"
+                f"{report_filename}.xlsx"
             ),
+
             mime=(
                 "application/vnd.openxmlformats-officedocument."
                 "spreadsheetml.sheet"
             ),
+
             use_container_width=True,
         )
