@@ -557,9 +557,12 @@ def _load_inventory_report() -> pd.DataFrame:
 # =========================================================
 
 def _on_report_type_change() -> None:
-    """Reset date filters and old results when report type changes."""
+    """Reset filters and old results when report type changes."""
     st.session_state.rpt_date_from = date.today() - timedelta(days=30)
-    st.session_state.rpt_date_to   = date.today()
+    st.session_state.rpt_date_to = date.today()
+
+    st.session_state.pop("rpt_month", None)
+    st.session_state.pop("rpt_month_label", None)
     st.session_state.pop("rpt_df", None)
     st.session_state.pop("rpt_title", None)
 
@@ -614,26 +617,89 @@ def render_reports(on_back=None) -> None:
         )
 
     # Date filters — not needed for Current Inventory
-    if "rpt_date_from" not in st.session_state:
-        st.session_state.rpt_date_from = date.today() - timedelta(days=30)
-    if "rpt_date_to" not in st.session_state:
-        st.session_state.rpt_date_to = date.today()
+        # =========================================================
+    # MONTH FILTER
+    # =========================================================
 
-    date_from = st.session_state.rpt_date_from
-    date_to   = st.session_state.rpt_date_to
+    month_start = None
+    month_end = None
 
     if report_type not in ("— Select Report —", "Current Inventory"):
+
+        # Last 24 months
+        today = date.today()
+
+        month_options = []
+
+        for i in range(24):
+            year = today.year
+            month = today.month - i
+
+            while month <= 0:
+                month += 12
+                year -= 1
+
+            month_options.append(date(year, month, 1))
+
+        month_labels = [
+            d.strftime("%B %Y")
+            for d in month_options
+        ]
+
         with c2:
-            _label("Date From")
-            date_from = st.date_input(
-                "date_from", value=st.session_state.rpt_date_from,
-                key="rpt_date_from", label_visibility="collapsed",
+            _label("Select Month", required=True)
+
+            selected_month_label = st.selectbox(
+                "select_month",
+                month_labels,
+                key="rpt_month_label",
+                label_visibility="collapsed",
             )
+
+        # Selected month
+        selected_month = month_options[
+            month_labels.index(selected_month_label)
+        ]
+
+        # First day
+        month_start = selected_month
+
+        # First day of next month
+        if selected_month.month == 12:
+            next_month = date(
+                selected_month.year + 1,
+                1,
+                1
+            )
+        else:
+            next_month = date(
+                selected_month.year,
+                selected_month.month + 1,
+                1
+            )
+
+        # Last day of selected month
+        month_end = next_month - timedelta(days=1)
+
         with c3:
-            _label("Date To")
-            date_to = st.date_input(
-                "date_to", value=st.session_state.rpt_date_to,
-                key="rpt_date_to", label_visibility="collapsed",
+            _label("Date Range")
+
+            st.markdown(
+                f"""
+                <div style="
+                    background:#ffffff;
+                    border:1px solid #d1d5db;
+                    border-radius:8px;
+                    padding:9px 12px;
+                    font-size:0.88rem;
+                    color:#374151;
+                ">
+                    {month_start.strftime("%d %b %Y")}
+                    &nbsp; → &nbsp;
+                    {month_end.strftime("%d %b %Y")}
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
     with c4:
@@ -667,8 +733,13 @@ def render_reports(on_back=None) -> None:
         return
 
     if generate:
-        df_from = str(date_from)
-        df_to   = str(date_to)
+
+        if report_type == "Current Inventory":
+            df_from = None
+            df_to = None
+        else:
+            df_from = str(month_start)
+            df_to = str(month_end)
 
         with st.spinner("Generating report..."):
             if report_type == "PO Report":
