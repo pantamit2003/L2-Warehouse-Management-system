@@ -37,6 +37,7 @@ INACTIVITY_LIMIT = 600 # 10 minutes in seconds
 DISPLAY_NAMES = {
     "fdbwarehouse@swissmilitaryindia.com": "FDB Warehouse",
     "amit": "Amit",
+    "davinder.kashyap@swissmilitaryindia.com": "Davinder",
 }
 
 def get_display_name() -> str:
