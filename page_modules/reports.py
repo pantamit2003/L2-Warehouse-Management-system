@@ -12,6 +12,7 @@ Reports page — 5 report types:
 from __future__ import annotations
 
 import io
+import json
 from datetime import date, timedelta
 
 import pandas as pd
@@ -182,44 +183,82 @@ def _load_po_report(
             return pd.DataFrame()
 
         records = []
-        for r in rows:
-            sku_data = r.get("sku_data") or []
-            if not sku_data:
-                # PO with no SKUs — still show header
-                records.append({
-                    "PO No":        _s(r.get("po_no")),
-                    "Vendor":       _s(r.get("vendor")),
-                    "Warehouse":    _s(r.get("warehouse")),
-                    "PO Type":      _s(r.get("po_type")),
-                    "PO Date":      _s(r.get("po_date")),
-                    "Exp Date":     _s(r.get("exp_date")),
-                    "Transport":    _s(r.get("transport")),
-                    "Seller PO":    _s(r.get("seller_po")),
-                    "Invoice Type": _s(r.get("invoice_type")),
-                    "Remarks":      _s(r.get("remarks")),
-                    "SKU Code":     "",
-                    "SKU Name":     "",
-                    "Ordered Qty":  "",
-                    "Created At":   _s(r.get("created_at"))[:19],
-                })
-            else:
-                for sku in sku_data:
-                    records.append({
-                        "PO No":        _s(r.get("po_no")),
-                        "Vendor":       _s(r.get("vendor")),
-                        "Warehouse":    _s(r.get("warehouse")),
-                        "PO Type":      _s(r.get("po_type")),
-                        "PO Date":      _s(r.get("po_date")),
-                        "Exp Date":     _s(r.get("exp_date")),
-                        "Transport":    _s(r.get("transport")),
-                        "Seller PO":    _s(r.get("seller_po")),
-                        "Invoice Type": _s(r.get("invoice_type")),
-                        "Remarks":      _s(r.get("remarks")),
-                        "SKU Code":     _s(sku.get("sku_code")),
-                        "SKU Name":     _s(sku.get("sku_name")),
-                        "Ordered Qty":  _f(sku.get("qty")),
-                        "Created At":   _s(r.get("created_at"))[:19],
-                    })
+
+for r in rows:
+
+    sku_data = r.get("sku_data") or []
+
+    # -----------------------------------------------------
+    # sku_data kabhi JSON string ke form mein aa sakta hai
+    # -----------------------------------------------------
+    if isinstance(sku_data, str):
+
+        try:
+            sku_data = json.loads(sku_data)
+        except Exception:
+            sku_data = []
+
+    # -----------------------------------------------------
+    # Safety: agar single dict aa gaya ho
+    # -----------------------------------------------------
+    if isinstance(sku_data, dict):
+        sku_data = [sku_data]
+
+    # -----------------------------------------------------
+    # Safety: invalid format ho toh empty list
+    # -----------------------------------------------------
+    if not isinstance(sku_data, list):
+        sku_data = []
+
+    # -----------------------------------------------------
+    # PO with no SKU
+    # -----------------------------------------------------
+    if not sku_data:
+
+        records.append({
+            "PO No":        _s(r.get("po_no")),
+            "Vendor":       _s(r.get("vendor")),
+            "Warehouse":    _s(r.get("warehouse")),
+            "PO Type":      _s(r.get("po_type")),
+            "PO Date":      _s(r.get("po_date")),
+            "Exp Date":     _s(r.get("exp_date")),
+            "Transport":    _s(r.get("transport")),
+            "Seller PO":    _s(r.get("seller_po")),
+            "Invoice Type": _s(r.get("invoice_type")),
+            "Remarks":      _s(r.get("remarks")),
+            "SKU Code":     "",
+            "SKU Name":     "",
+            "Ordered Qty":  "",
+            "Created At":   _s(r.get("created_at"))[:19],
+        })
+
+    # -----------------------------------------------------
+    # SKU rows
+    # -----------------------------------------------------
+    else:
+
+        for sku in sku_data:
+
+            # Extra safety
+            if not isinstance(sku, dict):
+                continue
+
+            records.append({
+                "PO No":        _s(r.get("po_no")),
+                "Vendor":       _s(r.get("vendor")),
+                "Warehouse":    _s(r.get("warehouse")),
+                "PO Type":      _s(r.get("po_type")),
+                "PO Date":      _s(r.get("po_date")),
+                "Exp Date":     _s(r.get("exp_date")),
+                "Transport":    _s(r.get("transport")),
+                "Seller PO":    _s(r.get("seller_po")),
+                "Invoice Type": _s(r.get("invoice_type")),
+                "Remarks":      _s(r.get("remarks")),
+                "SKU Code":     _s(sku.get("sku_code")),
+                "SKU Name":     _s(sku.get("sku_name")),
+                "Ordered Qty":  _f(sku.get("qty")),
+                "Created At":   _s(r.get("created_at"))[:19],
+            })
 
         return pd.DataFrame(records)
 
