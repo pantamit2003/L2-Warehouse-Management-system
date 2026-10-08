@@ -1280,26 +1280,159 @@ def _render_putaway(po: dict) -> None:
                 st.session_state.pop(f"pta_qty_{po_no}_{sku_code}", None)
                 st.rerun()
 
-    if st.session_state.putaway_lines:
-        st.markdown('<div class="section-title">📋 Staged Lines (this session)</div>', unsafe_allow_html=True)
-        lines_df = pd.DataFrame(st.session_state.putaway_lines)[["po_no", "sku_code", "sku_name", "location", "qty"]]
-        lines_df.columns = ["PO No", "SKU Code", "SKU Name", "Location", "Qty"]
-        st.dataframe(lines_df, use_container_width=True, hide_index=True)
+        if st.session_state.putaway_lines:
 
-        total_staged = sum(_f(l.get("qty")) for l in st.session_state.putaway_lines)
-        st.info(f"📦 Total Staged: {total_staged:g}")
+        st.markdown(
+            '<div class="section-title">'
+            '📋 Staged Lines (this session)'
+            '</div>',
+            unsafe_allow_html=True
+        )
 
-        col_save, col_clear = st.columns([3, 1])
+        # =====================================================
+        # STAGED LINE HEADER
+        # =====================================================
+
+        header_cols = st.columns(
+            [1.5, 2.5, 2.5, 1.2, 0.8]
+        )
+
+        header_cols[0].markdown(
+            "**PO No**"
+        )
+
+        header_cols[1].markdown(
+            "**SKU Code**"
+        )
+
+        header_cols[2].markdown(
+            "**Location**"
+        )
+
+        header_cols[3].markdown(
+            "**Qty**"
+        )
+
+        header_cols[4].markdown(
+            "**Action**"
+        )
+
+        # =====================================================
+        # STAGED LINES
+        # =====================================================
+
+        for idx, line in enumerate(
+                st.session_state.putaway_lines
+        ):
+
+            row_cols = st.columns(
+                [1.5, 2.5, 2.5, 1.2, 0.8]
+            )
+
+            # PO
+            row_cols[0].write(
+                _s(line.get("po_no"))
+            )
+
+            # SKU
+            row_cols[1].write(
+                _s(line.get("sku_code"))
+            )
+
+            # Location
+            row_cols[2].write(
+                _s(line.get("location"))
+            )
+
+            # Qty
+            row_cols[3].write(
+                f'{_f(line.get("qty")):g}'
+            )
+
+            # Delete button
+            with row_cols[4]:
+
+                if st.button(
+                        "🗑",
+                        key=f"pta_delete_line_{idx}",
+                        help="Remove this staged line",
+                ):
+                    # Remove ONLY this line
+                    st.session_state.putaway_lines.pop(
+                        idx
+                    )
+
+                    st.rerun()
+
+            st.markdown(
+                '<div style="'
+                'border-bottom:1px solid #e5e7eb;'
+                'margin:4px 0 8px 0;">'
+                '</div>',
+                unsafe_allow_html=True
+            )
+
+        # =====================================================
+        # TOTAL STAGED
+        # =====================================================
+
+        total_staged = sum(
+            _f(line.get("qty"))
+            for line in st.session_state.putaway_lines
+        )
+
+        st.info(
+            f"📦 Total Staged: {total_staged:g}"
+        )
+
+        # =====================================================
+        # ACTION BUTTONS
+        # =====================================================
+
+        col_save, col_clear = st.columns(
+            [3, 1]
+        )
+
+        # -----------------------------------------------------
+        # CLEAR ALL
+        # -----------------------------------------------------
+
         with col_clear:
-            if st.button("🗑 Clear Lines", key="pta_clear"):
+
+            if st.button(
+                    "🗑 Clear All",
+                    key="pta_clear",
+                    use_container_width=True
+            ):
                 st.session_state.putaway_lines = []
+
                 st.rerun()
+
+        # -----------------------------------------------------
+        # SAVE
+        # -----------------------------------------------------
+
         with col_save:
-            if st.button("✅ Save Putaway", type="primary", use_container_width=True, key="pta_save"):
+
+            if st.button(
+                    "✅ Save Putaway",
+                    type="primary",
+                    use_container_width=True,
+                    key="pta_save"
+            ):
+
                 if not st.session_state.putaway_lines:
-                    st.warning("⚠️ Koi line staged nahi hai.")
+
+                    st.warning(
+                        "⚠️ Koi line staged nahi hai."
+                    )
+
                 else:
-                    st.session_state.gate_in_pending_save = "putaway"
+
+                    st.session_state.gate_in_pending_save = (
+                        "putaway"
+                    )
+
                     st.rerun()
 
 
