@@ -42,16 +42,23 @@ def _get_secret(key: str) -> str | None:
     return os.environ.get(key)
 
 
-@st.cache_resource(show_spinner=False)
 def get_client() -> Client:
-    url = _get_secret("SUPABASE_URL")
-    key = _get_secret("SUPABASE_ANON_KEY")
-    if not url or not key:
-        raise RuntimeError(
-            "SUPABASE_URL / SUPABASE_ANON_KEY missing. "
-            "Add them to .streamlit/secrets.toml or environment variables."
+    """Create one Supabase client per Streamlit session."""
+    if "_supabase_client" not in st.session_state:
+        url = _get_secret("SUPABASE_URL")
+        key = _get_secret("SUPABASE_ANON_KEY")
+
+        if not url or not key:
+            raise RuntimeError(
+                "SUPABASE_URL / SUPABASE_ANON_KEY missing. "
+                "Add them to .streamlit/secrets.toml or environment variables."
+            )
+
+        st.session_state["_supabase_client"] = create_client(
+            url, key
         )
-    return create_client(url, key)
+
+    return st.session_state["_supabase_client"]
 
 
 def username_to_identity(username: str) -> str:
