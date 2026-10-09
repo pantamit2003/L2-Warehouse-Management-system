@@ -38,6 +38,11 @@ DISPLAY_NAMES = {
     "fdbwarehouse@swissmilitaryindia.com": "FDB Warehouse",
     "amit": "Amit",
     "davinder.kashyap@swissmilitaryindia.com": "Davinder",
+    "l2marketing@swissmilitaryindia.com": "Marketing",
+    "l2online@swissmilitaryindia.com": "Online",
+    "l2purchase@swissmilitaryindia.com": "Purchase",
+    "l2retail@swissmilitaryindia.com":, "DT BSDK",
+    
 }
 
 def get_display_name() -> str:
