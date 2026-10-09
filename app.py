@@ -41,7 +41,7 @@ DISPLAY_NAMES = {
     "l2marketing@swissmilitaryindia.com": "Marketing",
     "l2online@swissmilitaryindia.com": "Online",
     "l2purchase@swissmilitaryindia.com": "Purchase",
-    "l2retail@swissmilitaryindia.com":, "DT BSDK",
+    "l2retail@swissmilitaryindia.com": "DT BSDK",
     
 }
 
