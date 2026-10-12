@@ -84,6 +84,7 @@ if "current_page" not in st.session_state:
 # ── REFRESH FIX ───────────────────────────────────────────
 if not st.session_state.authenticated:
     restore_session()
+    st.write("DEBUG — Session restored:", restored)
 # ─────────────────────────────────────────────────────────
 
 
