@@ -283,13 +283,13 @@ def _render_step1() -> None:
 
     with c5:
         _label("⭐ PO Date")
-        po_date = st.date_input("PO Date", value=date.today(),
+        po_date = st.date_input("PO Date", value=date.today(), format="DD/MM/YYYY",
                                 label_visibility="collapsed", key="po_date")
 
     with c6:
         _label("⭐ Expected Delivery Date")
         exp_date = st.date_input("Exp Date", value=None,
-                                 min_value=date.today(),
+                                 min_value=date.today(), format="DD/MM/YYYY",
                                  label_visibility="collapsed", key="po_exp_date")
 
     _card_close()
@@ -305,8 +305,8 @@ def _render_step1() -> None:
                                  label_visibility="collapsed", key="po_transport")
 
     with c8:
-        _label("Seller PO Code")
-        seller_po = st.text_input("Seller PO", placeholder="Seller PO Code",
+        _label("Seller Invoice No")
+        seller_po = st.text_input("Seller PO", placeholder="Seller Invoice No",
                                   label_visibility="collapsed", key="po_seller")
 
     with c9:
