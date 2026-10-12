@@ -143,6 +143,11 @@ def restore_session() -> bool:
     try:
         client  = get_client()
         session = client.auth.get_session()
+        st.write("DEBUG — Supabase session exists:", bool(session))
+        st.write(
+            "DEBUG — Session user exists:",
+             bool(session and getattr(session, "user", None))
+        )
 
         if session and session.user:
             email    = getattr(session.user, "email", "") or ""
