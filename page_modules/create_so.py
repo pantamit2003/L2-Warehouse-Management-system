@@ -1642,6 +1642,7 @@ def render_create_so(on_back=None) -> None:
                 f"Saved Quantity {index}",
                 min_value=1.0,
                 value=_f(item["quantity"]),
+                format="%g",
                 disabled=True,
                 label_visibility="collapsed",
                 key=f"so_saved_qty_{index}",
@@ -1851,6 +1852,7 @@ def render_create_so(on_back=None) -> None:
             min_value=1.0,
             value=1.0,
             step=1.0,
+            format="%g",
             label_visibility="collapsed",
             key="so_new_quantity",
         )
@@ -1889,6 +1891,7 @@ def render_create_so(on_back=None) -> None:
             "MRP",
             min_value=0.0,
             step=0.01,
+            format="%g",
             label_visibility="collapsed",
             key="so_new_mrp",
         )
@@ -1902,6 +1905,7 @@ def render_create_so(on_back=None) -> None:
             "Selling Price",
             min_value=0.0,
             step=0.01,
+            format="%g",
             label_visibility="collapsed",
             key="so_new_selling_price",
         )
@@ -1915,6 +1919,7 @@ def render_create_so(on_back=None) -> None:
             "Discount Amount",
             min_value=0.0,
             step=0.01,
+            format="%g",
             label_visibility="collapsed",
             key="so_new_discount",
         )
