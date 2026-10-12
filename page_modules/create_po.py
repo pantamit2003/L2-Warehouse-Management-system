@@ -11,6 +11,8 @@ import json
 import streamlit as st
 from db.supabase_client import get_client
 
+def _s(val) -> str:
+    return str(val or "").strip()
 
 UOM_OPTIONS = ["Pcs", "Box", "Carton", "Kg", "Litre", "Bag", "Bundle", "Set"]
 PO_TYPES    = ["Inward", "Return"]
