@@ -912,6 +912,7 @@ def _render_receiving(po: dict) -> None:
         max_value=float(pending_qty),
         value=0.0,
         step=1.0,
+        format="%g",
         key=f"recv_qty_{po_no}_{sku_code}",
         help=f"Max: {pending_qty:g}",
     )
@@ -1096,10 +1097,10 @@ def _render_qc(po: dict) -> None:
 
     col_passed, col_rejected = st.columns(2)
     with col_passed:
-        passed_qty = st.number_input("Passed Qty", min_value=0.0, max_value=float(qc_pending), value=0.0, step=1.0, key=f"qc_passed_{po_no}_{sku_code}")
+        passed_qty = st.number_input("Passed Qty", min_value=0.0, max_value=float(qc_pending), value=0.0, step=1.0, format="%g", key=f"qc_passed_{po_no}_{sku_code}")
     with col_rejected:
         max_rejected = max(qc_pending - passed_qty, 0.0)
-        rejected_qty = st.number_input("Rejected Qty", min_value=0.0, max_value=float(max_rejected), value=0.0, step=1.0, key=f"qc_rejected_{po_no}_{sku_code}")
+        rejected_qty = st.number_input("Rejected Qty", min_value=0.0, max_value=float(max_rejected), value=0.0, step=1.0,format="%g", key=f"qc_rejected_{po_no}_{sku_code}")
 
     remark = st.text_input("QC Remark (optional)", key=f"qc_remark_{po_no}_{sku_code}", placeholder="e.g. Damaged packaging, colour mismatch...")
 
@@ -1370,6 +1371,7 @@ def _render_putaway(po: dict) -> None:
             max_value=float(remaining_to_stage),
             value=0.0,
             step=1.0,
+            format="%g",
             key=f"pta_qty_{po_no}_{sku_code}",
             help=f"Max: {remaining_to_stage:g}",
         )
