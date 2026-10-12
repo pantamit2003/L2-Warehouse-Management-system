@@ -374,7 +374,7 @@ def _render_single_editor(sku_opts: list[str], sku_map: dict) -> list[dict]:
                                label_visibility="collapsed", key="s_sku")
     with c2:
         st.markdown("**Quantity**")
-        qty = st.number_input("Qty", min_value=0.0, step=1.0,
+        qty = st.number_input("Qty", min_value=0.0, step=1.0,format="%g",
                               label_visibility="collapsed", key="s_qty")
     with c3:
         st.markdown("**UOM**")
@@ -422,7 +422,7 @@ def _render_multi_editor(sku_opts: list[str], sku_map: dict) -> list[dict]:
         with rc2:
             rows[i]["qty"] = st.number_input(f"qty_{i}",
                                              min_value=0.0, step=1.0,
-                                             value=float(row.get("qty", 1)),
+                                             value=float(row.get("qty", 1)),format="%g",
                                              label_visibility="collapsed",
                                              key=f"mqty_{i}")
         with rc3:
