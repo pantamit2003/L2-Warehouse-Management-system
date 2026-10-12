@@ -438,9 +438,13 @@ def _render_multi_editor(sku_opts: list[str], sku_map: dict) -> list[dict]:
                                               label_visibility="collapsed",
                                               key=f"mrate_{i}")
         with rc5:
-            if i > 0:
-                if st.button("🗑", key=f"del_{i}"):
-                    to_delete = i
+              if st.button(
+                  "🗑",
+                  key=f"del_{i}",
+                  help="Delete this SKU row",
+                  use_container_width=True,
+              ):
+                  to_delete = i
 
     if to_delete is not None:
         rows.pop(to_delete)
