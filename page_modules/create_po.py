@@ -449,26 +449,52 @@ def _render_multi_editor(sku_opts: list[str], sku_map: dict) -> list[dict]:
         st.rerun()
 
     sku_list = []
+
     for r in rows:
         sel = r.get("sku_code", "")
         res = sku_map.get(sel, {})
+
+        # Placeholder ya invalid SKU ko blank rakho
+        if sel == SKU_PLACEHOLDER or not res:
+            sku_code = ""
+            sku_name = ""
+        else:
+            sku_code = res.get("sku_code", "")
+            sku_name = res.get("sku_name", "")
+
         sku_list.append({
-            "sku_code": res.get("sku_code", sel),
-            "sku_name": res.get("sku_name", sel),
-            "qty":  r["qty"],
-            "uom":  r["uom"],
+            "sku_code": sku_code,
+            "sku_name": sku_name,
+            "qty": r["qty"],
+            "uom": r["uom"],
             "rate": r["rate"],
         })
+
     return sku_list
 
 
 def _submit_po(h: dict, sku_list: list[dict]) -> None:
     """Create PO dabane par: validate → po_master insert → success state."""
 
-    valid = [s for s in sku_list if str(s.get("sku_code", "")).strip()]
+    valid = [
+        s for s in sku_list
+        if _s(s.get("sku_code"))
+           and _s(s.get("sku_code")) != SKU_PLACEHOLDER
+           and _s(s.get("sku_name")) != SKU_PLACEHOLDER
+           and float(s.get("qty") or 0) > 0
+    ]
+
     if not valid:
-        st.error("❌ At least one SKU required.")
+        st.error("❌ Please select a valid SKU and enter quantity greater than 0.")
         return
+
+    if len(valid) != len(sku_list):
+        st.error(
+            "❌ Ek ya zyada rows mein SKU select nahi hai "
+            "ya quantity invalid hai. Rows correct ya delete karo."
+        )
+        return
+
 
     payload = {k: h[k] for k in _PAYLOAD_KEYS}
     payload["sku_data"] = json.dumps(valid)
