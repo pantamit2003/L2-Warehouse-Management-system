@@ -15,6 +15,7 @@ from db.supabase_client import get_client
 UOM_OPTIONS = ["Pcs", "Box", "Carton", "Kg", "Litre", "Bag", "Bundle", "Set"]
 PO_TYPES    = ["Inward", "Return"]
 TRANSPORT   = ["", "Road", "Rail", "Air", "Sea", "Courier", "Hand Delivery"]
+VENDOR_NAME= ["", "SM TRAVEL GEAR PVT LTD.","SR INDUSTRIES"]
 
 SKU_PLACEHOLDER = "— Select SKU —"
 
@@ -269,7 +270,7 @@ def _render_step1() -> None:
 
     with c3:
         _label("⭐ Vendor Name")
-        vendor = st.text_input("Vendor", placeholder="Search using Vendor Name",
+        vendor = st.selectbox("Vendor", VENDOR_NAME,
                                label_visibility="collapsed", key="po_vendor")
 
     st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
