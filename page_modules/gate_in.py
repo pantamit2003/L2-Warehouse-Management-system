@@ -938,20 +938,21 @@ def _render_receiving(po: dict) -> None:
             unsafe_allow_html=True,
         )
 
-        header = st.columns([1.2, 2.2, 2.5, 0.8, 0.6])
-        for col, label in zip(
-            header, ["PO No", "SKU Code", "SKU Name", "Qty", "Del"]
-        ):
+
+        header = st.columns([1.0, 2.5, 0.8, 0.5])
+        labels = ["PO No", "SKU Code", "Qty", "Del"]
+
+        for col, label in zip(header, labels):
             col.markdown(f"**{label}**")
 
         for idx, line in enumerate(st.session_state.receiving_lines):
-            cols = st.columns([1.2, 2.2, 2.5, 0.8, 0.6])
+            cols = st.columns([1.0, 2.5, 0.8, 0.5])
+
             cols[0].write(_s(line.get("po_no")))
             cols[1].write(_s(line.get("sku_code")))
-            cols[2].write(_s(line.get("sku_name")))
-            cols[3].write(f'{_f(line.get("qty")):g}')
+            cols[2].write(f'{_f(line.get("qty")):g}')
 
-            with cols[4]:
+            with cols[3]:
                 if st.button(
                     "🗑",
                     key=f"recv_delete_{idx}",
@@ -959,6 +960,7 @@ def _render_receiving(po: dict) -> None:
                 ):
                     st.session_state.receiving_lines.pop(idx)
                     st.rerun()
+
 
         total_staged = sum(
             _f(line.get("qty"))
@@ -1131,25 +1133,26 @@ def _render_qc(po: dict) -> None:
             unsafe_allow_html=True,
         )
 
-        header = st.columns([1.0, 1.5, 2.0, 0.8, 0.8, 1.8, 0.5])
+
+        header = st.columns([1.0, 2.5, 0.8, 0.8, 1.8, 0.5])
         labels = [
-            "PO No", "SKU Code", "SKU Name",
-            "Passed", "Rejected", "Remark", "Del"
+            "PO No", "SKU Code", "Passed",
+            "Rejected", "Remark", "Del"
         ]
+
         for col, label in zip(header, labels):
             col.markdown(f"**{label}**")
 
         for line_idx, line in enumerate(st.session_state.qc_lines):
-            cols = st.columns([1.0, 1.5, 2.0, 0.8, 0.8, 1.8, 0.5])
+            cols = st.columns([1.0, 2.5, 0.8, 0.8, 1.8, 0.5])
 
             cols[0].write(_s(line.get("po_no")))
             cols[1].write(_s(line.get("sku_code")))
-            cols[2].write(_s(line.get("sku_name")))
-            cols[3].write(f'{_f(line.get("passed_qty")):g}')
-            cols[4].write(f'{_f(line.get("rejected_qty")):g}')
-            cols[5].write(_s(line.get("remark")) or "-")
+            cols[2].write(f'{_f(line.get("passed_qty")):g}')
+            cols[3].write(f'{_f(line.get("rejected_qty")):g}')
+            cols[4].write(_s(line.get("remark")) or "-")
 
-            with cols[6]:
+            with cols[5]:
                 if st.button(
                     "🗑",
                     key=f"qc_delete_{line_idx}",
@@ -1157,6 +1160,7 @@ def _render_qc(po: dict) -> None:
                 ):
                     st.session_state.qc_lines.pop(line_idx)
                     st.rerun()
+
 
         total_passed = sum(
             _f(line.get("passed_qty"))
@@ -1398,28 +1402,24 @@ def _render_putaway(po: dict) -> None:
             unsafe_allow_html=True,
         )
 
-        header = st.columns([1.0, 1.5, 2.0, 2.0, 0.8, 0.5])
-        labels = [
-            "PO No", "SKU Code", "SKU Name",
-            "Location", "Qty", "Del"
-        ]
+        header = st.columns([1.0, 2.5, 2.0, 0.8, 0.5])
+        labels = ["PO No", "SKU", "Location", "Qty", "Del"]
         for col, label in zip(header, labels):
             col.markdown(f"**{label}**")
 
         for line_idx, line in enumerate(st.session_state.putaway_lines):
-            cols = st.columns([1.0, 1.5, 2.0, 2.0, 0.8, 0.5])
+            cols = st.columns([1.0, 2.5, 2.0, 0.8, 0.5])
 
             cols[0].write(_s(line.get("po_no")))
             cols[1].write(_s(line.get("sku_code")))
-            cols[2].write(_s(line.get("sku_name")))
-            cols[3].write(_s(line.get("location")))
-            cols[4].write(f'{_f(line.get("qty")):g}')
+            cols[2].write(_s(line.get("location")))
+            cols[3].write(f'{_f(line.get("qty")):g}')
 
-            with cols[5]:
+            with cols[4]:
                 if st.button(
-                    "🗑",
-                    key=f"pta_delete_{line_idx}",
-                    help="Delete this putaway line",
+                        "🗑",
+                        key=f"pta_delete_{line_idx}",
+                        help="Delete this putaway line",
                 ):
                     st.session_state.putaway_lines.pop(line_idx)
                     st.rerun()
