@@ -806,6 +806,7 @@ def _sku_totals_map(po_no: str, sku_list: list[dict]) -> dict:
     return totals_map
 
 
+
 def _render_receiving(po: dict) -> None:
     po_no = _s(po.get("po_no"))
 
@@ -823,10 +824,14 @@ def _render_receiving(po: dict) -> None:
         st.rerun()
 
     st.markdown(
-        f'<div class="po-info"><b>PO:</b> {po_no} &nbsp;|&nbsp; <b>Vendor:</b> {_s(po.get("vendor"))}</div>',
+        f'<div class="po-info"><b>PO:</b> {po_no} &nbsp;|&nbsp; '
+        f'<b>Vendor:</b> {_s(po.get("vendor"))}</div>',
         unsafe_allow_html=True,
     )
-    st.markdown('<div class="gate-title">📦 Receiving</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="gate-title">📦 Receiving</div>',
+        unsafe_allow_html=True,
+    )
 
     unique_skus = _unique_skus(_get_po_skus(po))
     if not unique_skus:
@@ -846,18 +851,41 @@ def _render_receiving(po: dict) -> None:
             "Pending": totals["receiving_pending"],
         })
 
-    st.markdown('<div class="section-title">📊 SKU Summary</div>', unsafe_allow_html=True)
-    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+    st.markdown(
+        '<div class="section-title">📊 SKU Summary</div>',
+        unsafe_allow_html=True,
+    )
+    st.dataframe(
+        pd.DataFrame(summary_rows),
+        use_container_width=True,
+        hide_index=True,
+    )
 
     sku_options = []
     for sku in sku_list:
         code = _s(sku.get("sku_code"))
         totals = totals_map[code]
-        sku_options.append(f"{_s(sku.get('sku_name')) or code} — Pending: {totals['receiving_pending']:g}")
+        sku_options.append(
+            f"{_s(sku.get('sku_name')) or code} — "
+            f"Pending: {totals['receiving_pending']:g}"
+        )
 
-    default_idx = next((i for i, sku in enumerate(sku_list) if totals_map[_s(sku.get("sku_code"))]["receiving_pending"] > 0), 0)
+    default_idx = next(
+        (
+            i for i, sku in enumerate(sku_list)
+            if totals_map[_s(sku.get("sku_code"))]["receiving_pending"] > 0
+        ),
+        0,
+    )
 
-    selected_display = st.selectbox("Select SKU", sku_options, index=default_idx, label_visibility="collapsed", key=f"recv_sku_{po_no}")
+    selected_display = st.selectbox(
+        "Select SKU",
+        sku_options,
+        index=default_idx,
+        label_visibility="collapsed",
+        key=f"recv_sku_{po_no}",
+    )
+
     idx = sku_options.index(selected_display)
     selected_sku = sku_list[idx]
     sku_code = _s(selected_sku.get("sku_code"))
@@ -873,7 +901,11 @@ def _render_receiving(po: dict) -> None:
         st.success("✅ Is SKU ki poori quantity receive ho chuki hai.")
         return
 
-    st.markdown('<div class="section-title">📥 Enter Received Qty</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-title">📥 Enter Received Qty</div>',
+        unsafe_allow_html=True,
+    )
+
     receive_qty = st.number_input(
         "Receive Qty",
         min_value=0.0,
@@ -899,27 +931,58 @@ def _render_receiving(po: dict) -> None:
             st.session_state.pop(f"recv_qty_{po_no}_{sku_code}", None)
             st.rerun()
 
+    # Staged lines: render only once
     if st.session_state.receiving_lines:
-        st.markdown('<div class="section-title">📋 Staged Lines (this session)</div>', unsafe_allow_html=True)
-        lines_df = pd.DataFrame(st.session_state.receiving_lines)[["po_no", "sku_code", "sku_name", "qty"]]
-        lines_df.columns = ["PO No", "SKU Code", "SKU Name", "Qty"]
-        st.dataframe(lines_df, use_container_width=True, hide_index=True)
+        st.markdown(
+            '<div class="section-title">📋 Staged Lines (this session)</div>',
+            unsafe_allow_html=True,
+        )
 
-        total_staged = sum(_f(l.get("qty")) for l in st.session_state.receiving_lines)
+        header = st.columns([1.2, 2.2, 2.5, 0.8, 0.6])
+        for col, label in zip(
+            header, ["PO No", "SKU Code", "SKU Name", "Qty", "Del"]
+        ):
+            col.markdown(f"**{label}**")
+
+        for idx, line in enumerate(st.session_state.receiving_lines):
+            cols = st.columns([1.2, 2.2, 2.5, 0.8, 0.6])
+            cols[0].write(_s(line.get("po_no")))
+            cols[1].write(_s(line.get("sku_code")))
+            cols[2].write(_s(line.get("sku_name")))
+            cols[3].write(f'{_f(line.get("qty")):g}')
+
+            with cols[4]:
+                if st.button(
+                    "🗑",
+                    key=f"recv_delete_{idx}",
+                    help="Delete this line",
+                ):
+                    st.session_state.receiving_lines.pop(idx)
+                    st.rerun()
+
+        total_staged = sum(
+            _f(line.get("qty"))
+            for line in st.session_state.receiving_lines
+        )
         st.info(f"📦 Total Staged: {total_staged:g}")
 
         col_save, col_clear = st.columns([3, 1])
+
         with col_clear:
-            if st.button("🗑 Clear Lines", key="recv_clear"):
+            if st.button("🗑 Clear Lines", key="recv_clear_receiving"):
                 st.session_state.receiving_lines = []
                 st.rerun()
+
         with col_save:
-            if st.button("✅ Save Receiving", type="primary", use_container_width=True, key="recv_save"):
-                if not st.session_state.receiving_lines:
-                    st.warning("⚠️ Koi line staged nahi hai.")
-                else:
-                    st.session_state.gate_in_pending_save = "receiving"
-                    st.rerun()
+            if st.button(
+                "✅ Save Receiving",
+                type="primary",
+                use_container_width=True,
+                key="recv_save",
+            ):
+                st.session_state.gate_in_pending_save = "receiving"
+                st.rerun()
+
 
 
 def _do_save_receiving(po: dict) -> bool:
@@ -1060,28 +1123,75 @@ def _render_qc(po: dict) -> None:
                 st.session_state.pop(key, None)
             st.rerun()
 
-    if st.session_state.qc_lines:
-        st.markdown('<div class="section-title">📋 Staged Lines (this session)</div>', unsafe_allow_html=True)
-        lines_df = pd.DataFrame(st.session_state.qc_lines)[["po_no", "sku_code", "sku_name", "passed_qty", "rejected_qty", "remark"]]
-        lines_df.columns = ["PO No", "SKU Code", "SKU Name", "Passed", "Rejected", "Remark"]
-        st.dataframe(lines_df, use_container_width=True, hide_index=True)
 
-        total_passed = sum(_f(l.get("passed_qty")) for l in st.session_state.qc_lines)
-        total_rejected = sum(_f(l.get("rejected_qty")) for l in st.session_state.qc_lines)
-        st.info(f"📊 Total Passed: {total_passed:g} | Total Rejected: {total_rejected:g}")
+    # Staged QC lines — render only once
+    if st.session_state.qc_lines:
+        st.markdown(
+            '<div class="section-title">📋 Staged Lines (this session)</div>',
+            unsafe_allow_html=True,
+        )
+
+        header = st.columns([1.0, 1.5, 2.0, 0.8, 0.8, 1.8, 0.5])
+        labels = [
+            "PO No", "SKU Code", "SKU Name",
+            "Passed", "Rejected", "Remark", "Del"
+        ]
+        for col, label in zip(header, labels):
+            col.markdown(f"**{label}**")
+
+        for line_idx, line in enumerate(st.session_state.qc_lines):
+            cols = st.columns([1.0, 1.5, 2.0, 0.8, 0.8, 1.8, 0.5])
+
+            cols[0].write(_s(line.get("po_no")))
+            cols[1].write(_s(line.get("sku_code")))
+            cols[2].write(_s(line.get("sku_name")))
+            cols[3].write(f'{_f(line.get("passed_qty")):g}')
+            cols[4].write(f'{_f(line.get("rejected_qty")):g}')
+            cols[5].write(_s(line.get("remark")) or "-")
+
+            with cols[6]:
+                if st.button(
+                    "🗑",
+                    key=f"qc_delete_{line_idx}",
+                    help="Delete this QC line",
+                ):
+                    st.session_state.qc_lines.pop(line_idx)
+                    st.rerun()
+
+        total_passed = sum(
+            _f(line.get("passed_qty"))
+            for line in st.session_state.qc_lines
+        )
+        total_rejected = sum(
+            _f(line.get("rejected_qty"))
+            for line in st.session_state.qc_lines
+        )
+        total_staged = total_passed + total_rejected
+
+        st.info(
+            f"🔍 Total QC Staged: {total_staged:g} | "
+            f"✅ Passed: {total_passed:g} | "
+            f"❌ Rejected: {total_rejected:g}"
+        )
 
         col_save, col_clear = st.columns([3, 1])
+
         with col_clear:
-            if st.button("🗑 Clear Lines", key="qc_clear"):
+            if st.button("🗑 Clear Lines", key="qc_clear_lines"):
                 st.session_state.qc_lines = []
                 st.rerun()
+
         with col_save:
-            if st.button("✅ Save QC", type="primary", use_container_width=True, key="qc_save"):
-                if not st.session_state.qc_lines:
-                    st.warning("⚠️ Koi line staged nahi hai.")
-                else:
-                    st.session_state.gate_in_pending_save = "qc"
-                    st.rerun()
+            if st.button(
+                "✅ Save QC",
+                type="primary",
+                use_container_width=True,
+                key="qc_save",
+            ):
+                st.session_state.gate_in_pending_save = "qc"
+                st.rerun()
+
+
 
 
 def _do_save_qc(po: dict) -> bool:
@@ -1280,27 +1390,63 @@ def _render_putaway(po: dict) -> None:
                 st.session_state.pop(f"pta_qty_{po_no}_{sku_code}", None)
                 st.rerun()
 
-    if st.session_state.putaway_lines:
-        st.markdown('<div class="section-title">📋 Staged Lines (this session)</div>', unsafe_allow_html=True)
-        lines_df = pd.DataFrame(st.session_state.putaway_lines)[["po_no", "sku_code", "sku_name", "location", "qty"]]
-        lines_df.columns = ["PO No", "SKU Code", "SKU Name", "Location", "Qty"]
-        st.dataframe(lines_df, use_container_width=True, hide_index=True)
 
-        total_staged = sum(_f(l.get("qty")) for l in st.session_state.putaway_lines)
-        st.info(f"📦 Total Staged: {total_staged:g}")
+    # Staged Putaway lines — render only once
+    if st.session_state.putaway_lines:
+        st.markdown(
+            '<div class="section-title">📋 Staged Lines (this session)</div>',
+            unsafe_allow_html=True,
+        )
+
+        header = st.columns([1.0, 1.5, 2.0, 2.0, 0.8, 0.5])
+        labels = [
+            "PO No", "SKU Code", "SKU Name",
+            "Location", "Qty", "Del"
+        ]
+        for col, label in zip(header, labels):
+            col.markdown(f"**{label}**")
+
+        for line_idx, line in enumerate(st.session_state.putaway_lines):
+            cols = st.columns([1.0, 1.5, 2.0, 2.0, 0.8, 0.5])
+
+            cols[0].write(_s(line.get("po_no")))
+            cols[1].write(_s(line.get("sku_code")))
+            cols[2].write(_s(line.get("sku_name")))
+            cols[3].write(_s(line.get("location")))
+            cols[4].write(f'{_f(line.get("qty")):g}')
+
+            with cols[5]:
+                if st.button(
+                    "🗑",
+                    key=f"pta_delete_{line_idx}",
+                    help="Delete this putaway line",
+                ):
+                    st.session_state.putaway_lines.pop(line_idx)
+                    st.rerun()
+
+        total_staged = sum(
+            _f(line.get("qty"))
+            for line in st.session_state.putaway_lines
+        )
+        st.info(f"📍 Total Putaway Staged: {total_staged:g}")
 
         col_save, col_clear = st.columns([3, 1])
+
         with col_clear:
-            if st.button("🗑 Clear Lines", key="pta_clear"):
+            if st.button("🗑 Clear Lines", key="pta_clear_lines"):
                 st.session_state.putaway_lines = []
                 st.rerun()
+
         with col_save:
-            if st.button("✅ Save Putaway", type="primary", use_container_width=True, key="pta_save"):
-                if not st.session_state.putaway_lines:
-                    st.warning("⚠️ Koi line staged nahi hai.")
-                else:
-                    st.session_state.gate_in_pending_save = "putaway"
-                    st.rerun()
+            if st.button(
+                "✅ Save Putaway",
+                type="primary",
+                use_container_width=True,
+                key="pta_save",
+            ):
+                st.session_state.gate_in_pending_save = "putaway"
+                st.rerun()
+
 
 
 def _do_save_putaway(po: dict) -> bool:
