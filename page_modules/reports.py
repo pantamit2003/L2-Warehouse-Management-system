@@ -626,13 +626,13 @@ def render_reports(on_back=None) -> None:
         with c2:
             _label("Date From")
             date_from = st.date_input(
-                "date_from", value=st.session_state.rpt_date_from,
+                "date_from", value=st.session_state.rpt_date_from, format="DD/MM/YYYY",
                 key="rpt_date_from", label_visibility="collapsed",
             )
         with c3:
             _label("Date To")
             date_to = st.date_input(
-                "date_to", value=st.session_state.rpt_date_to,
+                "date_to", value=st.session_state.rpt_date_to, format="DD/MM/YYYY",
                 key="rpt_date_to", label_visibility="collapsed",
             )
 
