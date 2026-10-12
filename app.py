@@ -20,7 +20,6 @@ from page_modules.packing import render_packing
 from page_modules.dispatch import render_dispatch
 from auth import sign_in, sign_out, restore_session, update_activity, is_session_expired
 
-
 st.set_page_config(
     page_title="L2 | Warehouse Management System",
     page_icon="🏭",
@@ -31,7 +30,7 @@ st.set_page_config(
 BG_IMAGE = Path(__file__).parent / "assets" / "bg.jpg"
 
 # ── INACTIVITY AUTO-LOGOUT ────────────────────────────────
-INACTIVITY_LIMIT = 600 # 10 minutes in seconds
+INACTIVITY_LIMIT = 600  # 10 minutes in seconds
 
 # ── DISPLAY NAMES ─────────────────────────────────────────
 DISPLAY_NAMES = {
@@ -42,13 +41,13 @@ DISPLAY_NAMES = {
     "l2online@swissmilitaryindia.com": "Online",
     "l2purchase@swissmilitaryindia.com": "Purchase",
     "l2retail@swissmilitaryindia.com": "Retail",
-    
+
 }
+
 
 def get_display_name() -> str:
     username = st.session_state.get("username", "")
     return DISPLAY_NAMES.get(username, username)
-
 
 
 def check_session_timeout() -> None:
@@ -63,6 +62,8 @@ def check_session_timeout() -> None:
         st.rerun()
     else:
         update_activity(username)  # active hai toh refresh karo
+
+
 # ─────────────────────────────────────────────────────────
 
 
@@ -75,16 +76,17 @@ def _get_bg() -> str:
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
-    st.session_state.username      = None
-    st.session_state.session       = None
+    st.session_state.username = None
+    st.session_state.session = None
 
 if "current_page" not in st.session_state:
     st.session_state.current_page = "Home"
 
 # ── REFRESH FIX ───────────────────────────────────────────
 if not st.session_state.authenticated:
-    restored = restore_session()
-    st.write("DEBUG — Session restored:", restored)
+    restore_session()
+
+
 # ─────────────────────────────────────────────────────────
 
 
@@ -436,11 +438,11 @@ def login_page() -> None:
 </div>
 """, unsafe_allow_html=True)
 
-            username  = st.text_input("", placeholder="👤  Username",
-                                      label_visibility="collapsed")
-            password  = st.text_input("", placeholder="🔒  Password",
-                                      label_visibility="collapsed",
-                                      type="password")
+            username = st.text_input("", placeholder="👤  Username",
+                                     label_visibility="collapsed")
+            password = st.text_input("", placeholder="🔒  Password",
+                                     label_visibility="collapsed",
+                                     type="password")
             submitted = st.form_submit_button("Login")
 
             st.markdown("""
@@ -457,8 +459,8 @@ Smarter Warehousing. Stronger Tomorrow.
             result = sign_in(username, password)
             if result.ok:
                 st.session_state.authenticated = True
-                st.session_state.username      = result.username
-                st.session_state.session       = result.session
+                st.session_state.username = result.username
+                st.session_state.session = result.session
                 update_activity(result.username)
                 st.rerun()
             else:
@@ -493,13 +495,13 @@ def render_sidebar() -> None:
 """, unsafe_allow_html=True)
 
         nav_items = [
-            ("🏠", "Home",           True),
-            ("📋", "PO Creation",    True),
-            ("🚛", "Gate In",        True),
-            ("🛒", "Sales Order",    True),
-            ("🚪", "Gate Out",       True),
+            ("🏠", "Home", True),
+            ("📋", "PO Creation", True),
+            ("🚛", "Gate In", True),
+            ("🛒", "Sales Order", True),
+            ("🚪", "Gate Out", True),
             ("📦", "Material Check", True),
-            ("📊", "Reports",        True),
+            ("📊", "Reports", True),
         ]
 
         for icon, label, enabled in nav_items:
@@ -546,9 +548,9 @@ def render_sidebar() -> None:
                      use_container_width=True):
             sign_out()
             st.session_state.authenticated = False
-            st.session_state.username      = None
-            st.session_state.session       = None
-            st.session_state.current_page  = "Home"
+            st.session_state.username = None
+            st.session_state.session = None
+            st.session_state.current_page = "Home"
             st.rerun()
 
         st.markdown(f"""
@@ -608,9 +610,9 @@ def page_home() -> None:
 
     q1, q2, q3, q4 = st.columns(4)
     for col, icon, title, desc in [
-        (q1, "📋", "PO Creation",    "Create a new purchase order"),
-        (q2, "🚛", "Gate In",        "Record incoming material"),
-        (q3, "🚪", "Gate Out",       "Log outgoing shipment"),
+        (q1, "📋", "PO Creation", "Create a new purchase order"),
+        (q2, "🚛", "Gate In", "Record incoming material"),
+        (q3, "🚪", "Gate Out", "Log outgoing shipment"),
         (q4, "📦", "Material Check", "Verify inventory & quality"),
     ]:
         with col:
@@ -669,7 +671,6 @@ def page_placeholder(name: str, icon: str) -> None:
 """, unsafe_allow_html=True)
 
 
-
 def inject_heartbeat() -> None:
     """Har 4 min mein Streamlit ko rerun karta hai — true inactivity detect ke liye."""
     st.markdown("""
@@ -684,6 +685,7 @@ def inject_heartbeat() -> None:
     }
     </script>
     """, unsafe_allow_html=True)
+
 
 # ── DASHBOARD SHELL ───────────────────────────────────────────────────────
 def home_page() -> None:
