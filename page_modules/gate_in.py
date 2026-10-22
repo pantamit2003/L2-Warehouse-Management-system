@@ -1077,7 +1077,12 @@ def _do_save_receiving(po: dict) -> bool:
                 "received_qty": _f(line.get("qty")),
                 "received_by": username,
             })
-        get_client().table("receiving").insert(receiving_rows).execute()
+        get_client().rpc(
+            "save_receiving_validated",
+            {
+                "p_receiving_rows": receiving_rows,
+            }
+        ).execute()
         _clear_stage_caches()
     except Exception as e:
         st.error(f"❌ Receiving save nahi hua: {e}")
