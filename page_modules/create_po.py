@@ -481,11 +481,12 @@ def _render_multi_editor(sku_opts: list[str], sku_map: dict) -> list[dict]:
 
 
 
+
 def _submit_po(h: dict, sku_list: list[dict]) -> None:
-    """Create a new PO or add quantities to an existing PO's SKUs."""
+    """Har PO submission ke liye ek naya, independent batch create karo."""
 
     valid = [
-        s for s in sku_list
+        s.copy() for s in sku_list
         if _s(s.get("sku_code"))
         and _s(s.get("sku_code")) != SKU_PLACEHOLDER
         and _s(s.get("sku_name")) != SKU_PLACEHOLDER
@@ -508,58 +509,13 @@ def _submit_po(h: dict, sku_list: list[dict]) -> None:
 
     try:
         client = get_client()
-        po_no = h["po_no"]
 
-        existing_res = (
-            client.table("po_master")
-            .select("po_no, sku_data")
-            .eq("po_no", po_no)
-            .maybe_single()
-            .execute()
-        )
+        # Har submission ek naya PO batch banayegi.
+        # Existing PO ko search, update ya merge nahi karna.
+        payload = {k: h[k] for k in _PAYLOAD_KEYS}
+        payload["sku_data"] = json.dumps(valid)
 
-        if existing_res.data:
-            existing = existing_res.data
-            old_skus = existing.get("sku_data") or []
-
-            if isinstance(old_skus, str):
-                old_skus = json.loads(old_skus)
-
-            if not isinstance(old_skus, list):
-                raise ValueError("Existing PO ka sku_data valid list format mein nahi hai.")
-
-            # Existing SKUs ko SKU code ke hisaab se index karo
-            sku_index = {}
-
-            for i, item in enumerate(old_skus):
-                if isinstance(item, dict):
-                    code = _s(item.get("sku_code"))
-                    if code:
-                        sku_index[code] = i
-
-            # Existing SKU ki quantity add karo; naye SKU append karo
-            for new_item in valid:
-                code = _s(new_item.get("sku_code"))
-                new_qty = float(new_item.get("qty") or 0)
-
-                if code in sku_index:
-                    old_item = old_skus[sku_index[code]]
-                    old_qty = float(old_item.get("qty") or 0)
-
-                    old_item["qty"] = old_qty + new_qty
-                else:
-                    old_skus.append(new_item.copy())
-                    sku_index[code] = len(old_skus) - 1
-
-            client.table("po_master").update({
-                "sku_data": json.dumps(old_skus)
-            }).eq("po_no", po_no).execute()
-
-        else:
-            payload = {k: h[k] for k in _PAYLOAD_KEYS}
-            payload["sku_data"] = json.dumps(valid)
-
-            client.table("po_master").insert(payload).execute()
+        client.table("po_master").insert(payload).execute()
 
     except Exception as e:
         processing.empty()
@@ -570,6 +526,7 @@ def _submit_po(h: dict, sku_list: list[dict]) -> None:
     st.session_state.sku_rows = _new_rows()
     st.session_state.po_show_overlay = True
     st.rerun()
+
 
 
 
