@@ -479,15 +479,16 @@ def _render_multi_editor(sku_opts: list[str], sku_map: dict) -> list[dict]:
     return sku_list
 
 
+
 def _submit_po(h: dict, sku_list: list[dict]) -> None:
-    """Create PO dabane par: validate → po_master insert → success state."""
+    """Create a new PO or append SKUs to an existing PO."""
 
     valid = [
         s for s in sku_list
         if _s(s.get("sku_code"))
-           and _s(s.get("sku_code")) != SKU_PLACEHOLDER
-           and _s(s.get("sku_name")) != SKU_PLACEHOLDER
-           and float(s.get("qty") or 0) > 0
+        and _s(s.get("sku_code")) != SKU_PLACEHOLDER
+        and _s(s.get("sku_name")) != SKU_PLACEHOLDER
+        and float(s.get("qty") or 0) > 0
     ]
 
     if not valid:
@@ -501,29 +502,74 @@ def _submit_po(h: dict, sku_list: list[dict]) -> None:
         )
         return
 
-
-    payload = {k: h[k] for k in _PAYLOAD_KEYS}
-    payload["sku_data"] = json.dumps(valid)
-
-    # Save ke dauran poori screen pe "Processing" overlay
     processing = st.empty()
     processing.markdown(_PROCESSING_OVERLAY_HTML, unsafe_allow_html=True)
 
     try:
-        get_client().table("po_master").insert(payload).execute()
+        client = get_client()
+        po_no = h["po_no"]
+
+        existing_res = (
+            client.table("po_master")
+            .select("po_no, sku_data")
+            .eq("po_no", po_no)
+            .maybe_single()
+            .execute()
+        )
+
+        if existing_res.data:
+            existing = existing_res.data
+            old_skus = existing.get("sku_data") or []
+
+            if isinstance(old_skus, str):
+                old_skus = json.loads(old_skus)
+
+            old_skus = old_skus if isinstance(old_skus, list) else []
+
+            existing_codes = {
+                _s(item.get("sku_code"))
+                for item in old_skus
+                if isinstance(item, dict)
+            }
+
+            new_codes = {
+                _s(item.get("sku_code"))
+                for item in valid
+            }
+
+            duplicates = existing_codes & new_codes
+
+            if duplicates:
+                processing.empty()
+                st.error(
+                    "❌ Ye SKU is PO mein pehle se maujood hai: "
+                    + ", ".join(sorted(duplicates))
+                    + ". Duplicate SKU add nahi kiya."
+                )
+                return
+
+            merged_skus = old_skus + valid
+
+            client.table("po_master").update({
+                "sku_data": json.dumps(merged_skus)
+            }).eq("po_no", po_no).execute()
+
+        else:
+            payload = {k: h[k] for k in _PAYLOAD_KEYS}
+            payload["sku_data"] = json.dumps(valid)
+
+            client.table("po_master").insert(payload).execute()
+
     except Exception as e:
-        processing.empty()            # failure me overlay turant hatao
+        processing.empty()
         st.error(f"❌ PO Save Nahi Hua: {e}")
         return
 
     st.session_state.po_created = True
     st.session_state.sku_rows = _new_rows()
-
-    # Overlay yahan nahi hataya: agla run apna overlay dikhaye aur
-    # page poora render hone ke baad hi hataye (purani screen ka
-    # flash na aaye).
     st.session_state.po_show_overlay = True
     st.rerun()
+
 
 
 # =========================================================
