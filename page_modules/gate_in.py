@@ -246,19 +246,21 @@ def _load_pos() -> list[dict]:
         raise Exception(f"PO Master load error: {e}")
 
 
+
 @st.cache_data(ttl=20, show_spinner=False)
-def _load_receiving(po_no: str) -> list[dict]:
+def _load_receiving(po_batch_id: str) -> list[dict]:
     try:
         r = (
             get_client()
             .table("receiving")
             .select("sku_code,received_qty")
-            .eq("po_no", _s(po_no))
+            .eq("po_batch_id", _s(po_batch_id))
             .execute()
         )
         return r.data or []
     except Exception as e:
         raise Exception(f"Receiving load error: {e}")
+
 
 
 @st.cache_data(ttl=20, show_spinner=False)
@@ -270,14 +272,14 @@ def _load_receiving_all() -> dict:
             r = (
                 get_client()
                 .table("receiving")
-                .select("po_no,sku_code,received_qty")
+                .select("po_batch_id,sku_code,received_qty")
                 .order("id")
                 .range(start, start + PAGE_SIZE - 1)
                 .execute()
             )
             data = r.data or []
             for row in data:
-                key = (_s(row.get("po_no")), _s(row.get("sku_code")))
+                key = (_s(row.get("po_batch_id")), _s(row.get("sku_code")))
                 totals[key] = totals.get(key, 0.0) + _f(row.get("received_qty"))
             if len(data) < PAGE_SIZE:
                 break
@@ -287,8 +289,8 @@ def _load_receiving_all() -> dict:
         raise Exception(f"Receiving bulk load error: {e}")
 
 
-def _total_received(po_no: str, sku_code: str) -> float:
-    rows = _load_receiving(po_no)
+def _total_received(po_batch_id: str, sku_code: str) -> float:
+    rows = _load_receiving(po_batch_id)
     return sum(
         _f(r.get("received_qty"))
         for r in rows
@@ -297,18 +299,19 @@ def _total_received(po_no: str, sku_code: str) -> float:
 
 
 @st.cache_data(ttl=20, show_spinner=False)
-def _load_qc(po_no: str) -> list[dict]:
+def _load_qc(po_batch_id: str) -> list[dict]:
     try:
         r = (
             get_client()
             .table("qc")
             .select("sku_code,passed_qty,rejected_qty")
-            .eq("po_no", _s(po_no))
+            .eq("po_batch_id", _s(po_batch_id))
             .execute()
         )
         return r.data or []
     except Exception as e:
         raise Exception(f"QC load error: {e}")
+
 
 
 @st.cache_data(ttl=20, show_spinner=False)
@@ -321,14 +324,14 @@ def _load_qc_all() -> tuple[dict, dict]:
             r = (
                 get_client()
                 .table("qc")
-                .select("po_no,sku_code,passed_qty,rejected_qty")
+                .select("po_batch_id,sku_code,passed_qty,rejected_qty")
                 .order("id")
                 .range(start, start + PAGE_SIZE - 1)
                 .execute()
             )
             data = r.data or []
             for row in data:
-                key = (_s(row.get("po_no")), _s(row.get("sku_code")))
+                key = (_s(row.get("po_batch_id")), _s(row.get("sku_code")))
                 passed_map[key] = passed_map.get(key, 0.0) + _f(row.get("passed_qty"))
                 rejected_map[key] = rejected_map.get(key, 0.0) + _f(row.get("rejected_qty"))
             if len(data) < PAGE_SIZE:
@@ -339,26 +342,41 @@ def _load_qc_all() -> tuple[dict, dict]:
         raise Exception(f"QC bulk load error: {e}")
 
 
-def _total_qc(po_no: str, sku_code: str) -> tuple[float, float]:
-    rows = _load_qc(po_no)
-    passed = sum(_f(r.get("passed_qty")) for r in rows if _s(r.get("sku_code")) == _s(sku_code))
-    rejected = sum(_f(r.get("rejected_qty")) for r in rows if _s(r.get("sku_code")) == _s(sku_code))
+
+def _total_qc(po_batch_id: str, sku_code: str) -> tuple[float, float]:
+    rows = _load_qc(po_batch_id)
+
+    passed = sum(
+        _f(r.get("passed_qty"))
+        for r in rows
+        if _s(r.get("sku_code")) == _s(sku_code)
+    )
+    rejected = sum(
+        _f(r.get("rejected_qty"))
+        for r in rows
+        if _s(r.get("sku_code")) == _s(sku_code)
+    )
+
     return passed, rejected
 
 
+
+
 @st.cache_data(ttl=20, show_spinner=False)
-def _load_putaway(po_no: str) -> list[dict]:
+def _load_putaway(po_batch_id: str) -> list[dict]:
     try:
         r = (
             get_client()
             .table("putaway")
             .select("sku_code,putaway_qty")
-            .eq("po_no", _s(po_no))
+            .eq("po_batch_id", _s(po_batch_id))
             .execute()
         )
         return r.data or []
     except Exception as e:
         raise Exception(f"Putaway load error: {e}")
+
+
 
 
 @st.cache_data(ttl=20, show_spinner=False)
@@ -370,14 +388,14 @@ def _load_putaway_all() -> dict:
             r = (
                 get_client()
                 .table("putaway")
-                .select("po_no,sku_code,putaway_qty")
+                .select("po_batch_id,sku_code,putaway_qty")
                 .order("id")
                 .range(start, start + PAGE_SIZE - 1)
                 .execute()
             )
             data = r.data or []
             for row in data:
-                key = (_s(row.get("po_no")), _s(row.get("sku_code")))
+                key = (_s(row.get("po_batch_id")), _s(row.get("sku_code")))
                 totals[key] = totals.get(key, 0.0) + _f(row.get("putaway_qty"))
             if len(data) < PAGE_SIZE:
                 break
@@ -387,15 +405,27 @@ def _load_putaway_all() -> dict:
         raise Exception(f"Putaway bulk load error: {e}")
 
 
-def _total_putaway(po_no: str, sku_code: str) -> float:
-    rows = _load_putaway(po_no)
-    return sum(_f(r.get("putaway_qty")) for r in rows if _s(r.get("sku_code")) == _s(sku_code))
 
 
-def _stage_totals(po_no: str, sku_code: str, ordered_qty: float) -> dict:
-    received = _total_received(po_no, sku_code)
-    qc_passed, qc_rej = _total_qc(po_no, sku_code)
-    putaway = _total_putaway(po_no, sku_code)
+def _total_putaway(po_batch_id: str, sku_code: str) -> float:
+    rows = _load_putaway(po_batch_id)
+
+    return sum(
+        _f(r.get("putaway_qty"))
+        for r in rows
+        if _s(r.get("sku_code")) == _s(sku_code)
+    )
+
+
+
+def _stage_totals(
+    po_batch_id: str,
+    sku_code: str,
+    ordered_qty: float,
+) -> dict:
+    received = _total_received(po_batch_id, sku_code)
+    qc_passed, qc_rej = _total_qc(po_batch_id, sku_code)
+    putaway = _total_putaway(po_batch_id, sku_code)
 
     receiving_pending = max(ordered_qty - received, 0)
     qc_pending = max(received - qc_passed - qc_rej, 0)
@@ -413,8 +443,10 @@ def _stage_totals(po_no: str, sku_code: str, ordered_qty: float) -> dict:
     }
 
 
+
+
 def _stage_totals_from_maps(
-    po_no: str,
+    po_batch_id: str,
     sku_code: str,
     ordered_qty: float,
     recv_map: dict,
@@ -422,7 +454,7 @@ def _stage_totals_from_maps(
     rejected_map: dict,
     putaway_map: dict,
 ) -> dict:
-    key = (_s(po_no), _s(sku_code))
+    key = (_s(po_batch_id), _s(sku_code))
     received = recv_map.get(key, 0.0)
     qc_passed = passed_map.get(key, 0.0)
     qc_rej = rejected_map.get(key, 0.0)
@@ -603,6 +635,7 @@ def _get_location_qty(df: pd.DataFrame, location: str) -> float:
     return float(df.loc[mask, "current_qty"].sum())
 
 
+
 def _po_summary(
     po: dict,
     recv_map: dict,
@@ -611,6 +644,7 @@ def _po_summary(
     putaway_map: dict,
 ) -> dict:
     po_no = _s(po.get("po_no"))
+    po_batch_id = _s(po.get("po_batch_id"))
     unique_skus = _unique_skus(_get_po_skus(po))
 
     ordered = 0.0
@@ -621,7 +655,15 @@ def _po_summary(
 
     for sku_code, sku in unique_skus.items():
         ordered_qty = _f(sku.get("qty"))
-        totals = _stage_totals_from_maps(po_no, sku_code, ordered_qty, recv_map, passed_map, rejected_map, putaway_map)
+        totals = _stage_totals_from_maps(
+            po_batch_id,
+            sku_code,
+            ordered_qty,
+            recv_map,
+            passed_map,
+            rejected_map,
+            putaway_map,
+        )
         ordered += totals["ordered"]
         received += totals["received"]
         qc_passed += totals["qc_passed"]
@@ -630,9 +672,11 @@ def _po_summary(
 
     pending = max(ordered - received, 0)
 
-    receiving_done = ordered > 0 and received >= ordered
-    qc_done = receiving_done and (qc_passed + qc_rejected) >= received
-    putaway_done = qc_done and putaway >= qc_passed
+    EPS = 1e-6
+
+    receiving_done = ordered > 0 and received >= ordered - EPS
+    qc_done = receiving_done and (qc_passed + qc_rejected) >= received - EPS
+    putaway_done = qc_done and putaway >= qc_passed - EPS
 
     if ordered <= 0:
         status = "PENDING"
@@ -650,6 +694,7 @@ def _po_summary(
     return {
         "po": po,
         "po_no": po_no,
+        "po_batch_id": po_batch_id,
         "vendor": _s(po.get("vendor")),
         "warehouse": _s(po.get("warehouse")),
         "sku_count": len(unique_skus),
@@ -658,6 +703,7 @@ def _po_summary(
         "pending": pending,
         "status": status,
     }
+
 
 
 _COLS = [1.5, 2.0, 1.2, 0.9, 0.9, 0.9, 1.2, 1.0]
@@ -688,10 +734,14 @@ def _render_po_rows(rows: list[dict], tab_key: str) -> None:
         c[6].markdown(f'<span class="gi-badge gi-badge-{r["status"].lower()}">{r["status"]}</span>', unsafe_allow_html=True)
         with c[7]:
             label = "Open ▶" if r["status"] != "COMPLETED" else "View"
-            if st.button(label, key=f"gate_in_open_{tab_key}_{r['po_no']}", use_container_width=True):
-                st.session_state.gate_in_active_po = r["po_no"]
+            if st.button(label, key=f"gate_in_open_{tab_key}_{r['po_batch_id']}", use_container_width=True):
+                st.session_state.gate_in_active_po = r["po_batch_id"]
                 st.session_state.gate_in_stage = None
+                st.session_state.receiving_lines = []
+                st.session_state.qc_lines = []
                 st.session_state.putaway_lines = []
+
+                st.session_state.gate_in_pending_save = None
                 st.rerun()
         st.markdown('<div class="gi-sep"></div>', unsafe_allow_html=True)
 
@@ -746,6 +796,7 @@ def _render_po_list(po_data: list[dict]) -> None:
 
 def _render_gate_in_process(po: dict) -> None:
     po_no = _s(po.get("po_no"))
+    po_batch_id = _s(po.get("po_batch_id"))
     vendor = _s(po.get("vendor"))
     warehouse = _s(po.get("warehouse"))
 
@@ -768,7 +819,7 @@ def _render_gate_in_process(po: dict) -> None:
     agg = {"ordered": 0.0, "received": 0.0, "qc_passed": 0.0, "qc_rejected": 0.0, "putaway": 0.0}
 
     for sku_code, sku in unique_skus.items():
-        totals = _stage_totals(po_no, sku_code, _f(sku.get("qty")))
+        totals = _stage_totals(po_batch_id, sku_code, _f(sku.get("qty")))
         agg["ordered"] += totals["ordered"]
         agg["received"] += totals["received"]
         agg["qc_passed"] += totals["qc_passed"]
@@ -799,17 +850,26 @@ def _render_gate_in_process(po: dict) -> None:
                 st.rerun()
 
 
-def _sku_totals_map(po_no: str, sku_list: list[dict]) -> dict:
+
+def _sku_totals_map(po_batch_id: str, sku_list: list[dict]) -> dict:
     totals_map = {}
+
     for sku in sku_list:
         code = _s(sku.get("sku_code"))
-        totals_map[code] = _stage_totals(po_no, code, _f(sku.get("qty")))
+        totals_map[code] = _stage_totals(
+            po_batch_id,
+            code,
+            _f(sku.get("qty")),
+        )
+
     return totals_map
+
 
 
 
 def _render_receiving(po: dict) -> None:
     po_no = _s(po.get("po_no"))
+    po_batch_id = _s(po.get("po_batch_id"))
 
     if st.session_state.get("gate_in_pending_save") == "receiving":
         overlay = st.empty()
@@ -840,7 +900,7 @@ def _render_receiving(po: dict) -> None:
         return
 
     sku_list = list(unique_skus.values())
-    totals_map = _sku_totals_map(po_no, sku_list)
+    totals_map = _sku_totals_map(po_batch_id, sku_list)
 
     summary_rows = []
     for sku_code, sku in unique_skus.items():
@@ -884,7 +944,7 @@ def _render_receiving(po: dict) -> None:
         sku_options,
         index=default_idx,
         label_visibility="collapsed",
-        key=f"recv_sku_{po_no}",
+        key=f"recv_sku_{po_batch_id}",
     )
 
     idx = sku_options.index(selected_display)
@@ -914,11 +974,11 @@ def _render_receiving(po: dict) -> None:
         value=0.0,
         step=1.0,
         format="%g",
-        key=f"recv_qty_{po_no}_{sku_code}",
+        key=f"recv_qty_{po_batch_id}_{sku_code}",
         help=f"Max: {pending_qty:g}",
     )
 
-    if st.button("➕ Add Line", key=f"recv_add_{po_no}_{sku_code}"):
+    if st.button("➕ Add Line", key=f"recv_add_{po_batch_id}_{sku_code}"):
         if receive_qty <= 0:
             st.error("❌ Quantity 0 se zyada honi chahiye.")
         elif receive_qty > pending_qty:
@@ -926,11 +986,12 @@ def _render_receiving(po: dict) -> None:
         else:
             st.session_state.receiving_lines.append({
                 "po_no": po_no,
+                "po_batch_id": po_batch_id,
                 "sku_code": sku_code,
                 "sku_name": _s(selected_sku.get("sku_name")) or sku_code,
                 "qty": float(receive_qty),
             })
-            st.session_state.pop(f"recv_qty_{po_no}_{sku_code}", None)
+            st.session_state.pop(f"recv_qty_{po_batch_id}_{sku_code}", None)
             st.rerun()
 
     # Staged lines: render only once
@@ -991,10 +1052,18 @@ def _render_receiving(po: dict) -> None:
 
 def _do_save_receiving(po: dict) -> bool:
     po_no = _s(po.get("po_no"))
+    po_batch_id = _s(po.get("po_batch_id"))
     lines = list(st.session_state.receiving_lines)
 
     if not lines:
         st.warning("⚠️ Koi line staged nahi hai.")
+        return False
+
+    if any(
+        _s(line.get("po_batch_id")) != po_batch_id
+        for line in lines
+    ):
+        st.error("❌ Batch mismatch! Lines clear karke dobara add karo.")
         return False
 
     try:
@@ -1003,6 +1072,7 @@ def _do_save_receiving(po: dict) -> bool:
         for line in lines:
             receiving_rows.append({
                 "po_no": po_no,
+                "po_batch_id": po_batch_id,
                 "sku_code": _s(line.get("sku_code")),
                 "received_qty": _f(line.get("qty")),
                 "received_by": username,
@@ -1023,6 +1093,7 @@ def _do_save_receiving(po: dict) -> bool:
 
 def _render_qc(po: dict) -> None:
     po_no = _s(po.get("po_no"))
+    po_batch_id = _s(po.get("po_batch_id"))
 
     if st.session_state.get("gate_in_pending_save") == "qc":
         overlay = st.empty()
@@ -1049,7 +1120,7 @@ def _render_qc(po: dict) -> None:
         return
 
     sku_list = list(unique_skus.values())
-    totals_map = _sku_totals_map(po_no, sku_list)
+    totals_map = _sku_totals_map(po_batch_id, sku_list)
 
     summary_rows = []
     for sku_code, sku in unique_skus.items():
@@ -1073,7 +1144,7 @@ def _render_qc(po: dict) -> None:
 
     default_idx = next((i for i, sku in enumerate(sku_list) if totals_map[_s(sku.get("sku_code"))]["qc_pending"] > 0), 0)
 
-    selected_display = st.selectbox("Select SKU", sku_options, index=default_idx, label_visibility="collapsed", key=f"qc_sku_{po_no}")
+    selected_display = st.selectbox("Select SKU", sku_options, index=default_idx, label_visibility="collapsed", key=f"qc_sku_{po_batch_id}")
     idx = sku_options.index(selected_display)
     selected_sku = sku_list[idx]
     sku_code = _s(selected_sku.get("sku_code"))
@@ -1098,18 +1169,23 @@ def _render_qc(po: dict) -> None:
 
     col_passed, col_rejected = st.columns(2)
     with col_passed:
-        passed_qty = st.number_input("Passed Qty", min_value=0.0, max_value=float(qc_pending), value=0.0, step=1.0, format="%g", key=f"qc_passed_{po_no}_{sku_code}")
+        passed_qty = st.number_input("Passed Qty", min_value=0.0, max_value=float(qc_pending), value=0.0, step=1.0, format="%g", key=f"qc_passed_{po_batch_id}_{sku_code}")
     with col_rejected:
         max_rejected = max(qc_pending - passed_qty, 0.0)
-        rejected_qty = st.number_input("Rejected Qty", min_value=0.0, max_value=float(max_rejected), value=0.0, step=1.0,format="%g", key=f"qc_rejected_{po_no}_{sku_code}")
+        rejected_qty = st.number_input("Rejected Qty", min_value=0.0, max_value=float(max_rejected), value=0.0, step=1.0,format="%g", key=f"qc_rejected_{po_batch_id}_{sku_code}")
 
-    remark = st.text_input("QC Remark (optional)", key=f"qc_remark_{po_no}_{sku_code}", placeholder="e.g. Damaged packaging, colour mismatch...")
+    
+    remark = st.text_input(
+        "QC Remark (optional)",
+        key=f"qc_remark_{po_batch_id}_{sku_code}",
+        placeholder="e.g. Damaged packaging, colour mismatch...",
+    )
 
     total_qc_entered = passed_qty + rejected_qty
     if total_qc_entered > qc_pending:
         st.error(f"❌ Passed + Rejected ({total_qc_entered:g}) > QC Pending ({qc_pending:g})")
 
-    if st.button("➕ Add Line", key=f"qc_add_{po_no}_{sku_code}"):
+    if st.button("➕ Add Line", key=f"qc_add_{po_batch_id}_{sku_code}"):
         if total_qc_entered <= 0:
             st.error("❌ Passed + Rejected dono 0 nahi ho sakte.")
         elif total_qc_entered > qc_pending:
@@ -1117,13 +1193,18 @@ def _render_qc(po: dict) -> None:
         else:
             st.session_state.qc_lines.append({
                 "po_no": po_no,
+                "po_batch_id": po_batch_id,
                 "sku_code": sku_code,
                 "sku_name": _s(selected_sku.get("sku_name")) or sku_code,
                 "passed_qty": float(passed_qty),
                 "rejected_qty": float(rejected_qty),
                 "remark": remark,
             })
-            for key in (f"qc_passed_{po_no}_{sku_code}", f"qc_rejected_{po_no}_{sku_code}", f"qc_remark_{po_no}_{sku_code}"):
+            for key in (
+                f"qc_passed_{po_batch_id}_{sku_code}",
+                f"qc_rejected_{po_batch_id}_{sku_code}",
+                f"qc_remark_{po_batch_id}_{sku_code}",
+            ):
                 st.session_state.pop(key, None)
             st.rerun()
 
@@ -1202,25 +1283,40 @@ def _render_qc(po: dict) -> None:
 
 def _do_save_qc(po: dict) -> bool:
     po_no = _s(po.get("po_no"))
+    po_batch_id = _s(po.get("po_batch_id"))
     lines = list(st.session_state.qc_lines)
 
     if not lines:
         st.warning("⚠️ Koi line staged nahi hai.")
         return False
 
+    if any(
+        _s(line.get("po_batch_id")) != po_batch_id
+        for line in lines
+    ):
+        st.error("❌ Batch mismatch! Lines clear karke dobara add karo.")
+        return False
+        
     try:
         username = st.session_state.get("username", "")
         qc_rows = []
         for line in lines:
             qc_rows.append({
                 "po_no": po_no,
+                "po_batch_id": po_batch_id,
                 "sku_code": _s(line.get("sku_code")),
                 "passed_qty": _f(line.get("passed_qty")),
                 "rejected_qty": _f(line.get("rejected_qty")),
                 "remark": _s(line.get("remark")),
                 "qc_by": username,
             })
-        get_client().table("qc").insert(qc_rows).execute()
+        get_client().rpc(
+            "save_qc_validated",
+            {
+                "p_qc_rows": qc_rows,
+            }
+        ).execute()
+
         _clear_stage_caches()
     except Exception as e:
         st.error(f"❌ QC save nahi hua: {e}")
@@ -1236,6 +1332,7 @@ def _do_save_qc(po: dict) -> bool:
 
 def _render_putaway(po: dict) -> None:
     po_no = _s(po.get("po_no"))
+    po_batch_id = _s(po.get("po_batch_id"))
 
     if st.session_state.get("gate_in_pending_save") == "putaway":
         overlay = st.empty()
@@ -1266,7 +1363,7 @@ def _render_putaway(po: dict) -> None:
         return
 
     sku_list = list(unique_skus.values())
-    totals_map = _sku_totals_map(po_no, sku_list)
+    totals_map = _sku_totals_map(po_batch_id, sku_list)
 
     summary_rows = []
     for sku_code, sku in unique_skus.items():
@@ -1289,7 +1386,7 @@ def _render_putaway(po: dict) -> None:
 
     default_idx = next((i for i, sku in enumerate(sku_list) if totals_map[_s(sku.get("sku_code"))]["putaway_pending"] > 0), 0)
 
-    selected_display = st.selectbox("Select SKU", sku_options, index=default_idx, label_visibility="collapsed", key=f"pta_sku_{po_no}")
+    selected_display = st.selectbox("Select SKU", sku_options, index=default_idx, label_visibility="collapsed", key=f"pta_sku_{po_batch_id}")
     idx = sku_options.index(selected_display)
     selected_sku = sku_list[idx]
     sku_code = _s(selected_sku.get("sku_code"))
@@ -1363,7 +1460,7 @@ def _render_putaway(po: dict) -> None:
             "Select Location",
             location_options,
             label_visibility="collapsed",
-            key=f"pta_loc_{po_no}_{sku_code}",
+            key=f"pta_loc_{po_batch_id}_{sku_code}",
         )
 
         line_qty = st.number_input(
@@ -1373,11 +1470,11 @@ def _render_putaway(po: dict) -> None:
             value=0.0,
             step=1.0,
             format="%g",
-            key=f"pta_qty_{po_no}_{sku_code}",
+            key=f"pta_qty_{po_batch_id}_{sku_code}",
             help=f"Max: {remaining_to_stage:g}",
         )
 
-        if st.button("➕ Add Line", key=f"pta_add_{po_no}_{sku_code}"):
+        if st.button("➕ Add Line", key=f"pta_add_{po_batch_id}_{sku_code}"):
             if selected_location_display == "— Select Location —":
                 st.error("❌ Location select karo.")
             elif line_qty <= 0:
@@ -1388,13 +1485,14 @@ def _render_putaway(po: dict) -> None:
                 selected_location = location_display_map[selected_location_display]
                 st.session_state.putaway_lines.append({
                     "po_no": po_no,
+                    "po_batch_id": po_batch_id,
                     "sku_code": sku_code,
                     "sku_name": _s(selected_sku.get("sku_name")) or sku_code,
                     "location": selected_location,
                     "qty": float(line_qty),
                 })
-                st.session_state.pop(f"pta_loc_{po_no}_{sku_code}", None)
-                st.session_state.pop(f"pta_qty_{po_no}_{sku_code}", None)
+                st.session_state.pop(f"pta_loc_{po_batch_id}_{sku_code}", None)
+                st.session_state.pop(f"pta_qty_{po_batch_id}_{sku_code}", None)
                 st.rerun()
 
 
@@ -1454,11 +1552,19 @@ def _render_putaway(po: dict) -> None:
 
 def _do_save_putaway(po: dict) -> bool:
     po_no = _s(po.get("po_no"))
+    po_batch_id = _s(po.get("po_batch_id"))
     lines = list(st.session_state.putaway_lines)
     unique_skus = _unique_skus(_get_po_skus(po))
 
     if not lines:
         st.warning("⚠️ Koi line staged nahi hai.")
+        return False
+        
+    if any(
+        _s(line.get("po_batch_id")) != po_batch_id
+        for line in lines
+    ):
+        st.error("❌ Batch mismatch! Lines clear karke dobara add karo.")
         return False
 
     # Qty validation — putaway pending se zyada nahi
@@ -1472,7 +1578,7 @@ def _do_save_putaway(po: dict) -> bool:
         if not sku_record:
             st.error(f"❌ SKU {sku_code} PO mein nahi mila.")
             return False
-        totals = _stage_totals(po_no, sku_code, _f(sku_record.get("qty")))
+        totals = _stage_totals(po_batch_id, sku_code, _f(sku_record.get("qty")))
         pending = totals["putaway_pending"]
         if total_qty > pending + 1e-6:
             st.error(f"❌ {sku_code}: Sirf {pending:g} units putaway ke liye available hain (aap {total_qty:g} daalne ki koshish kar rahe ho).")
@@ -1491,6 +1597,7 @@ def _do_save_putaway(po: dict) -> bool:
             st.error(f"❌ '{loc}' valid location nahi hai.")
             return False
 
+    
     try:
         supabase = get_client()
         username = st.session_state.get("username", "")
@@ -1500,29 +1607,40 @@ def _do_save_putaway(po: dict) -> bool:
         for line in lines:
             putaway_rows.append({
                 "po_no": po_no,
+                "po_batch_id": po_batch_id,
                 "sku_code": _s(line.get("sku_code")),
                 "warehouse": warehouse,
                 "location": _s(line.get("location")),
                 "putaway_qty": _f(line.get("qty")),
                 "putaway_by": username,
             })
-        supabase.table("putaway").insert(putaway_rows).execute()
 
         transaction_rows = []
         for line in lines:
             transaction_rows.append({
                 "transaction_type": "IN",
                 "po_number": po_no,
+                "po_batch_id": po_batch_id,
                 "sku": _s(line.get("sku_code")),
                 "location": _s(line.get("location")),
                 "qty": _f(line.get("qty")),
             })
-        supabase.table("inventory_transactions").insert(transaction_rows).execute()
+
+        # Dono tables ko ek hi database transaction mein save karo
+        supabase.rpc(
+            "save_putaway_atomic",
+            {
+                "p_putaway_rows": putaway_rows,
+                "p_transaction_rows": transaction_rows,
+            }
+        ).execute()
 
         _clear_stage_caches()
+
     except Exception as e:
         st.error(f"❌ Putaway save nahi hua: {e}")
         return False
+
 
     st.session_state.putaway_lines = []
     st.session_state.gate_in_success = True
@@ -1561,8 +1679,21 @@ def _render_gate_in_body(on_back=None) -> None:
         st.error(f"❌ PO Data Load Error: {e}")
         return
 
-    active_po_no = _s(st.session_state.get("gate_in_active_po") or "")
-    active_po = next((p for p in po_data if _s(p.get("po_no")) == active_po_no), None) if active_po_no else None
+    
+    active_po_batch_id = _s(st.session_state.get("gate_in_active_po") or "")
+    
+    active_po = (
+        next(
+            (
+                p for p in po_data
+                if _s(p.get("po_batch_id")) == active_po_batch_id
+            ),
+            None,
+        )
+        if active_po_batch_id
+        else None
+    )
+
 
     if not active_po:
         st.session_state.gate_in_active_po = None
