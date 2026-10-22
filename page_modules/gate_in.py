@@ -230,13 +230,14 @@ def _init_state() -> None:
             st.session_state[key] = value
 
 
+
 @st.cache_data(ttl=60, show_spinner=False)
 def _load_pos() -> list[dict]:
     try:
         r = (
             get_client()
             .table("po_master")
-            .select("po_no,warehouse,vendor,po_type,sku_data")
+            .select("id,po_batch_id,created_at,po_no,warehouse,vendor,po_type,sku_data")
             .order("created_at", desc=True)
             .execute()
         )
