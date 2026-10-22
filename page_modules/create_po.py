@@ -480,8 +480,9 @@ def _render_multi_editor(sku_opts: list[str], sku_map: dict) -> list[dict]:
 
 
 
+
 def _submit_po(h: dict, sku_list: list[dict]) -> None:
-    """Create a new PO or append SKUs to an existing PO."""
+    """Create a new PO or add quantities to an existing PO's SKUs."""
 
     valid = [
         s for s in sku_list
@@ -524,34 +525,34 @@ def _submit_po(h: dict, sku_list: list[dict]) -> None:
             if isinstance(old_skus, str):
                 old_skus = json.loads(old_skus)
 
-            old_skus = old_skus if isinstance(old_skus, list) else []
+            if not isinstance(old_skus, list):
+                raise ValueError("Existing PO ka sku_data valid list format mein nahi hai.")
 
-            existing_codes = {
-                _s(item.get("sku_code"))
-                for item in old_skus
-                if isinstance(item, dict)
-            }
+            # Existing SKUs ko SKU code ke hisaab se index karo
+            sku_index = {}
 
-            new_codes = {
-                _s(item.get("sku_code"))
-                for item in valid
-            }
+            for i, item in enumerate(old_skus):
+                if isinstance(item, dict):
+                    code = _s(item.get("sku_code"))
+                    if code:
+                        sku_index[code] = i
 
-            duplicates = existing_codes & new_codes
+            # Existing SKU ki quantity add karo; naye SKU append karo
+            for new_item in valid:
+                code = _s(new_item.get("sku_code"))
+                new_qty = float(new_item.get("qty") or 0)
 
-            if duplicates:
-                processing.empty()
-                st.error(
-                    "❌ Ye SKU is PO mein pehle se maujood hai: "
-                    + ", ".join(sorted(duplicates))
-                    + ". Duplicate SKU add nahi kiya."
-                )
-                return
+                if code in sku_index:
+                    old_item = old_skus[sku_index[code]]
+                    old_qty = float(old_item.get("qty") or 0)
 
-            merged_skus = old_skus + valid
+                    old_item["qty"] = old_qty + new_qty
+                else:
+                    old_skus.append(new_item.copy())
+                    sku_index[code] = len(old_skus) - 1
 
             client.table("po_master").update({
-                "sku_data": json.dumps(merged_skus)
+                "sku_data": json.dumps(old_skus)
             }).eq("po_no", po_no).execute()
 
         else:
