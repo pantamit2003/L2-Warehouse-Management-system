@@ -30,7 +30,7 @@ st.set_page_config(
 BG_IMAGE = Path(__file__).parent / "assets" / "bg.jpg"
 
 # ── INACTIVITY AUTO-LOGOUT ────────────────────────────────
-INACTIVITY_LIMIT = 600  # 10 minutes in seconds
+INACTIVITY_LIMIT = 1800  # 10 minutes in seconds
 
 # ── DISPLAY NAMES ─────────────────────────────────────────
 DISPLAY_NAMES = {
