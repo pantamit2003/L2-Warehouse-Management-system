@@ -301,72 +301,70 @@ def send_gate_out_email(
         "%d-%m-%Y %I:%M:%S %p"
     )
 
+   
     # =====================================================
-    # ITEMS
+    # ITEMS — GROUP SAME SKU AND SUM QUANTITY
     # =====================================================
 
-    item_rows = ""
+    grouped_items = {}
 
     total_qty = 0.0
 
     for item in gate_out_items:
 
-        sku = _safe(
-            item.get("sku_code")
-        )
+        sku = _safe(item.get("sku_code"))
 
-        location = _safe(
-            item.get("location")
-        )
+        if not sku:
+            continue
 
-        item_warehouse = _safe(
-            item.get("warehouse")
-        )
+        item_warehouse = _safe(item.get("warehouse")) or warehouse
 
-        # If warehouse is not present in item,
-        # use Sales Order warehouse.
-        if not item_warehouse:
-            item_warehouse = warehouse
-
-        qty = item.get(
-            "qty",
-            0,
-        )
+        qty = item.get("qty", 0)
 
         try:
-
-            total_qty += float(
-                qty
-            )
-
-        except Exception:
-            pass
+            qty = float(qty)
+        except (TypeError, ValueError):
+            qty = 0.0
 
         rate = _safe(item.get("mrp")) or "-"
-
         selling_price = _safe(item.get("selling_price")) or "-"
+
+        if sku not in grouped_items:
+            grouped_items[sku] = {
+                "warehouse": item_warehouse,
+                "qty": 0.0,
+                "mrp": rate,
+                "selling_price": selling_price,
+            }
+
+        grouped_items[sku]["qty"] += qty
+
+        total_qty += qty
+
+    item_rows = ""
+
+    for sku, item in grouped_items.items():
 
         item_rows += f"""
         <tr>
             <td>{sku}</td>
 
-            <td>{item_warehouse}</td>
-
-            <td>{location}</td>
+            <td>{item["warehouse"]}</td>
 
             <td style="text-align:center;">
-                {qty}
+                {item["qty"]:g}
             </td>
 
             <td style="text-align:right;">
-                {rate}
+                {item["mrp"]}
             </td>
 
             <td style="text-align:right;">
-                {selling_price}
+                {item["selling_price"]}
             </td>
         </tr>
         """
+
 
     # =====================================================
     # SUBJECT
@@ -634,7 +632,6 @@ td {{
                 <tr>
                     <th>SKU</th>
                     <th>Warehouse</th>
-                    <th>Location</th>
                     <th>Gate Out Qty</th>
                     <th>Rate (MRP)</th>
                     <th>Selling Price</th>
