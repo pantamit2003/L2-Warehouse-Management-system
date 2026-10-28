@@ -42,7 +42,7 @@ IMPORTANT:
 from __future__ import annotations
 
 import streamlit as st
-
+from auth import get_client
 from page_modules.email_service import send_gate_out_email
 from page_modules.packing import SEND_EMAIL_AT_PACKING
 
@@ -339,6 +339,31 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
             processing_overlay_html(PROCESSING_TITLE),
             unsafe_allow_html=True,
         )
+       
+        # Update Sales Order status in Supabase
+        try:
+            response = (
+                get_client()
+                .table("sales_orders")
+                .update({"status": "DISPATCHED"})
+                .eq("id", sales_order_db_id)
+                .eq("status", "CREATED")
+                .execute()
+            )
+
+            if not response.data:
+                processing_placeholder.empty()
+                st.error(
+                    "Order status update nahi hua. "
+                    "Database mein current status check karo."
+                )
+                st.stop()
+
+        except Exception as e:
+            processing_placeholder.empty()
+            st.error(f"Dispatch status update failed: {e}")
+            st.stop()
+
 
         processed_by = st.session_state.get("username", "")
 
