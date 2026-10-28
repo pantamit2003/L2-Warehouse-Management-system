@@ -552,9 +552,9 @@ def _save_picking(items: list[dict], picked_by: str) -> tuple[bool, str | None]:
         client.table("picking").insert(rows).execute()
 
         for order_id in dict.fromkeys(item["order_id"] for item in items):
-        client.table("sales_orders").update({
-        "status": "PICKING"
-        }).eq("order_id", order_id).execute()
+            client.table("sales_orders").update({
+                "status": "PICKING"
+             }).eq("order_id", order_id).execute()
 
         _clear_picking_caches()
 
