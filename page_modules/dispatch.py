@@ -347,7 +347,6 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
                 .table("sales_orders")
                 .update({"status": "DISPATCHED"})
                 .eq("id", sales_order_db_id)
-                .eq("status", "CREATED")
                 .execute()
             )
 
