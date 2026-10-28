@@ -145,7 +145,7 @@ def _render_order_list(orders: list[dict]) -> None:
                     order,
                     items_by_order.get(order["id"], []),
                     packed_totals,
-                    "DISPATCHED",
+                    "PACKED",
                 )
             )
 
