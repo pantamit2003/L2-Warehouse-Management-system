@@ -443,9 +443,9 @@ def _save_packing(items: list[dict], packed_by: str) -> tuple[bool, str | None]:
 
         client.table("inventory_transactions").insert(out_rows).execute()\
         for order_id in dict.fromkeys(item["order_id"] for item in items):
-        client.table("sales_orders").update({
-        "status": "PACKING"
-        }).eq("order_id", order_id).execute()
+            client.table("sales_orders").update({
+                "status": "PACKING"
+            }).eq("order_id", order_id).execute()
         
 
         _clear_packing_caches()
