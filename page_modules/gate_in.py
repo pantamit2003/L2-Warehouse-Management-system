@@ -1501,7 +1501,8 @@ def _render_putaway(po: dict) -> None:
                 st.rerun()
 
 
-    # Staged Putaway lines — render only once
+    
+    # Staged Putaway lines — latest added line first
     if st.session_state.putaway_lines:
         st.markdown(
             '<div class="section-title">📋 Staged Lines (this session)</div>',
@@ -1510,10 +1511,12 @@ def _render_putaway(po: dict) -> None:
 
         header = st.columns([1.0, 2.5, 2.0, 0.8, 0.5])
         labels = ["PO No", "SKU", "Location", "Qty", "Del"]
+
         for col, label in zip(header, labels):
             col.markdown(f"**{label}**")
 
-        for line_idx, line in enumerate(st.session_state.putaway_lines):
+        for line_idx in range(len(st.session_state.putaway_lines) - 1, -1, -1):
+            line = st.session_state.putaway_lines[line_idx]
             cols = st.columns([1.0, 2.5, 2.0, 0.8, 0.5])
 
             cols[0].write(_s(line.get("po_no")))
@@ -1523,9 +1526,9 @@ def _render_putaway(po: dict) -> None:
 
             with cols[4]:
                 if st.button(
-                        "🗑",
-                        key=f"pta_delete_{line_idx}",
-                        help="Delete this putaway line",
+                    "🗑",
+                    key=f"pta_delete_{line_idx}",
+                    help="Delete this putaway line",
                 ):
                     st.session_state.putaway_lines.pop(line_idx)
                     st.rerun()
