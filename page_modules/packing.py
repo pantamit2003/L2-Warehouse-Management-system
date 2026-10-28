@@ -441,7 +441,7 @@ def _save_packing(items: list[dict], packed_by: str) -> tuple[bool, str | None]:
 
         client.table("packing").insert(packing_rows).execute()
 
-        client.table("inventory_transactions").insert(out_rows).execute()\
+        client.table("inventory_transactions").insert(out_rows).execute()
         for order_id in dict.fromkeys(item["order_id"] for item in items):
             client.table("sales_orders").update({
                 "status": "PACKING"
