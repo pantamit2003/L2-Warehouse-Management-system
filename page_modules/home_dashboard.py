@@ -280,6 +280,31 @@ def _load_open_po_stats() -> dict | None:
         return None
 
 
+
+# =========================================================
+# LOAD: CREATED SALES ORDERS
+# =========================================================
+
+@st.cache_data(ttl=30, show_spinner=False)
+def _load_created_sales_orders() -> int | None:
+    """Sirf CREATED status wale Sales Orders count karta hai."""
+
+    try:
+        response = (
+            get_client()
+            .table("sales_orders")
+            .select("id", count="exact")
+            .eq("status", "CREATED")
+            .limit(1)
+            .execute()
+        )
+
+        return response.count if response.count is not None else 0
+
+    except Exception as e:
+        st.session_state["_sales_orders_debug_error"] = str(e)
+        return None
+
 # =========================================================
 # LOAD: RECENT ACTIVITY
 # =========================================================
@@ -531,6 +556,7 @@ def render_home_dashboard(
             _load_today_stats.clear()
             _load_open_po_stats.clear()
             _load_recent_activity.clear()
+            _load_created_sales_orders.clear()
 
             st.rerun()
 
@@ -541,8 +567,9 @@ def render_home_dashboard(
     sku_stats = _load_sku_stats()
     today_stats = _load_today_stats()
     po_stats = _load_open_po_stats()
+    created_sales_orders = _load_created_sales_orders()
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
 
     with c1:
 
@@ -604,6 +631,28 @@ def render_home_dashboard(
         else:
 
             _stat_card("📋", "Open POs", "—", "Data load nahi hua")
+    
+    with c5:
+
+        if created_sales_orders is not None:
+
+            _stat_card(
+                "🛒",
+                "Sales Orders Created",
+                f"{created_sales_orders:,}",
+                "Orders with CREATED status",
+            )
+
+        else:
+
+            _stat_card(
+                "🛒",
+                "Sales Orders Created",
+                "—",
+                "Data load nahi hua",
+            )
+
+    
 
             # TEMPORARY DEBUG — asli error yahan dikhega. Fix hone ke
             # baad ye 2 lines hata dena.
