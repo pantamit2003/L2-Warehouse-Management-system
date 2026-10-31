@@ -513,7 +513,7 @@ def _submit_po(h: dict, sku_list: list[dict]) -> None:
         # Har submission ek naya PO batch banayegi.
         # Existing PO ko search, update ya merge nahi karna.
         payload = {k: h[k] for k in _PAYLOAD_KEYS}
-        payload["sku_data"] = json.dumps(valid)
+        payload["sku_data"] = valid
 
         client.table("po_master").insert(payload).execute()
 
