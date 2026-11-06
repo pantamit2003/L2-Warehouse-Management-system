@@ -672,7 +672,7 @@ td {{
 
     <div class="footer">
 
-        This is an automated notification from EMIZA WMS.
+        Hope you will Appreciate Amit Pant Efforts soon.
         Please do not reply to this email.
 
     </div>
