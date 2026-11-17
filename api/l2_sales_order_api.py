@@ -102,17 +102,17 @@ def create_order(
         ) or None,
         "shipping_pincode": (
             payload.get("billing_pincode")
-            if payload.get("same_as_billing")
+            if same_as_billing
             else payload.get("shipping_pincode")
         ),
         "shipping_state": (
             payload.get("billing_state")
-            if payload.get("same_as_billing")
+            if same_as_billing
             else payload.get("shipping_state")
         ),
         "shipping_city": (
             payload.get("billing_city")
-            if payload.get("same_as_billing")
+            if same_as_billing
             else payload.get("shipping_city")
         ),
         "same_as_billing": same_as_billing,
