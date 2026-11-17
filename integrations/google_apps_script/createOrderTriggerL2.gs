@@ -6,9 +6,9 @@
  *   L2_SALES_ORDER_API_URL   e.g. https://<your-render-service>/create-order
  *   L2_SALES_ORDER_API_TOKEN <secret token>
  *
- * Add a separate L2_TRIGGER column to ORDER SHEET. Do not reuse TRIGGER:
- * the existing EMIZA createOrderTrigger() reads TRIGGER=YES without an L2
- * warehouse exclusion, so reusing that column could send L2 rows to EMIZA.
+ * Set WARHOUSE SELECT SO = L2 and TRIGGER = L2 for rows to send through
+ * this integration. Existing EMIZA createOrderTrigger() only processes
+ * TRIGGER = YES, so the value L2 keeps this route separate.
  *
  * Add a menu item to the existing onOpen() only when you want it visible:
  *   .addItem("Create L2 Orders", "createOrderTriggerL2")
@@ -35,7 +35,7 @@ function createOrderTriggerL2() {
 
   const required = [
     "PARTY", "PHONE", "BILLING_ADDRESS1", "WARHOUSE SELECT SO",
-    "L2_TRIGGER", "STATUS", "ORDER_ID", "SKU", "QTY BILLED", "PRICE"
+    "TRIGGER", "STATUS", "ORDER_ID", "SKU", "QTY BILLED", "PRICE"
   ];
   const missing = required.filter(h => index[h] === undefined);
   if (missing.length) throw new Error("Missing ORDER SHEET columns: " + missing.join(", "));
@@ -53,7 +53,7 @@ function createOrderTriggerL2() {
   const groups = new Map();
   values.slice(1).forEach((row, offset) => {
     const sheetRow = offset + 2;
-    if (text(value(row, "L2_TRIGGER")).toUpperCase() !== "YES") return;
+    if (text(value(row, "TRIGGER")).toUpperCase() !== "L2") return;
     if (text(value(row, "WARHOUSE SELECT SO")).toUpperCase() !== "L2") return;
 
     const party = text(value(row, "PARTY"));
@@ -157,13 +157,13 @@ function createOrderTriggerL2() {
       group.rowNumbers.forEach(r => {
         sheet.getRange(r, index["STATUS"] + 1).setValue("CREATED");
         sheet.getRange(r, index["ORDER_ID"] + 1).setValue(result.order_id);
-        sheet.getRange(r, index["L2_TRIGGER"] + 1).setValue("DONE");
+        sheet.getRange(r, index["TRIGGER"] + 1).setValue("DONE");
       });
       created++;
     } catch (err) {
       group.rowNumbers.forEach(r => {
         sheet.getRange(r, index["STATUS"] + 1).setValue("ERROR: " + String(err.message || err).slice(0, 450));
-        // Leave L2_TRIGGER=YES so the group can be retried after correction.
+        // Leave TRIGGER=L2 so the group can be retried after correction.
       });
     }
   }
