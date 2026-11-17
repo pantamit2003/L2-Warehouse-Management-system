@@ -71,6 +71,8 @@ def create_order(
     if not isinstance(line_items, list) or not line_items:
         raise HTTPException(status_code=400, detail="At least one line_item is required.")
 
+    same_as_billing = _as_bool(payload.get("same_as_billing", False))
+
     # Match the current EMIZA payload names while mapping to L2 columns.
     order_data = {
         "warehouse": "L2",
@@ -90,12 +92,12 @@ def create_order(
         "shipping_phone": payload.get("shipping_phone") or payload.get("phone") or None,
         "shipping_address_1": (
             payload.get("billing_address1")
-            if payload.get("same_as_billing")
+            if same_as_billing
             else payload.get("shipping_address1")
         ),
         "shipping_address_2": (
             payload.get("billing_address2")
-            if payload.get("same_as_billing")
+            if same_as_billing
             else payload.get("shipping_address2")
         ) or None,
         "shipping_pincode": (
@@ -113,7 +115,7 @@ def create_order(
             if payload.get("same_as_billing")
             else payload.get("shipping_city")
         ),
-        "same_as_billing": _as_bool(payload.get("same_as_billing", False)),
+        "same_as_billing": same_as_billing,
         "status": "CREATED",
     }
 
