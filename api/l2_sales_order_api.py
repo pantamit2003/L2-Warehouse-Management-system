@@ -27,6 +27,12 @@ def _get_supabase():
     return create_client(url, key)
 
 
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value or "").strip().lower() in {"true", "yes", "1", "y"}
+
+
 def _check_token(authorization: str | None, x_api_key: str | None) -> None:
     expected = os.environ.get("L2_SALES_ORDER_API_TOKEN", "").strip()
     if not expected:
@@ -107,7 +113,7 @@ def create_order(
             if payload.get("same_as_billing")
             else payload.get("shipping_city")
         ),
-        "same_as_billing": bool(payload.get("same_as_billing", False)),
+        "same_as_billing": _as_bool(payload.get("same_as_billing", False)),
         "status": "CREATED",
     }
 
@@ -143,6 +149,12 @@ def create_order(
             "zone": item.get("zone"),
         })
 
+    if not order_data["same_as_billing"] and not all(
+        order_data[field]
+        for field in ("shipping_address_1", "shipping_pincode", "shipping_state", "shipping_city")
+    ):
+        raise HTTPException(status_code=400, detail="Complete shipping address is required when it differs from billing.")
+
     try:
         response = _get_supabase().rpc(
             "create_sales_order_from_sheet",
@@ -162,4 +174,4 @@ def create_order(
         raise
     except Exception as exc:
         # Do not expose database credentials or internal connection details.
-        raise HTTPException(status_code=500, detail=f"Sales Order creation failed: {str(exc)}") from exc
+        raise HTTPException(status_code=500, detail="Sales Order creation failed. Check the Render service logs.") from exc
