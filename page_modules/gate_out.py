@@ -140,14 +140,18 @@ def _render_order_list(orders: list[dict]) -> None:
             if s(order.get("status")).upper() == "CANCELLED":
                 continue
 
-            out.append(
-                build_summary_from_items(
-                    order,
-                    items_by_order.get(order["id"], []),
-                    packed_totals,
-                    "PACKED",
-                )
+            summary = build_summary_from_items(
+                order,
+                items_by_order.get(order["id"], []),
+                packed_totals,
+                "PACKED",
             )
+
+            if s(order.get("status")).upper() == "DISPATCHED":
+                summary["status"] = "DISPATCHED"
+                summary["status_kind"] = "done"
+            
+            out.append(summary)
 
         return out
 
