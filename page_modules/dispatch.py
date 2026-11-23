@@ -177,14 +177,19 @@ def _render_order_list(orders: list[dict]) -> None:
             if s(order.get("status")).upper() == "CANCELLED":
                 continue
 
-            out.append(
-                build_summary_from_items(
-                    order,
-                    items_by_order.get(order["id"], []),
-                    packed_totals,
-                    "DISPATCHED",
-                )
+            summary = build_summary_from_items(
+                order,
+                items_by_order.get(order["id"], []),
+                packed_totals,
+                "DISPATCHED",
             )
+
+            if s(order.get("status")).upper() == "DISPATCHED":
+                summary["status"] = "DISPATCHED"
+                summary["status_kind"] = "done"
+
+            out.append(summary)
+           
 
         return out
 
@@ -313,8 +318,16 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
     # warehouse — Dispatch is just the confirmation click.
     # ---------------------------------------------------
 
-    if total_packed_all <= 0:
+    # Check actual Sales Order status
+   
+    # Check actual Sales Order status
+    current_status = s(selected_order.get("status")).upper()
 
+    if current_status == "DISPATCHED":
+        st.success("✅ This order is Already Dispatched.")
+        return
+
+    if total_packed_all <= 0:
         st.info(
             "Is order me abhi kuch bhi Packed nahi hua hai. "
             "Pehle Packing complete karo."
@@ -323,7 +336,8 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
 
     st.success(
         f"📦 Total {fmt_qty(total_packed_all)} units packed hain. "
-        f"Jitna maal warehouse se pack hokar tayar hai, usi ko dispatch confirm karo."
+        f"Jitna maal warehouse se pack hokar tayar hai, "
+        f"usi ko dispatch confirm karo."
     )
 
     if st.button(
@@ -332,14 +346,13 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
         use_container_width=True,
         key=f"dp_confirm_dispatch_{selected_order_id}",
     ):
-
         processing_placeholder = st.empty()
 
         processing_placeholder.markdown(
             processing_overlay_html(PROCESSING_TITLE),
             unsafe_allow_html=True,
         )
-       
+
         # Update Sales Order status in Supabase
         try:
             response = (
@@ -363,15 +376,12 @@ def _render_order_detail(selected_order: dict, selected_order_id: str) -> None:
             st.error(f"Dispatch status update failed: {e}")
             st.stop()
 
-
         processed_by = st.session_state.get("username", "")
 
         email_success, email_error = True, ""
 
-        # Only send from here if Packing did NOT already send it, to
-        # avoid a duplicate Accounts notification.
+        # Only send from here if Packing did NOT already send it
         if not SEND_EMAIL_AT_PACKING:
-
             email_success, email_error = send_gate_out_email(
                 order_data=selected_order,
                 gate_out_items=[],
