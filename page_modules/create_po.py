@@ -17,7 +17,7 @@ def _s(val) -> str:
 UOM_OPTIONS = ["Pcs", "Box", "Carton", "Kg", "Litre", "Bag", "Bundle", "Set"]
 PO_TYPES    = ["Inward", "Return"]
 TRANSPORT   = ["", "Road", "Rail", "Air", "Sea", "Courier", "Hand Delivery"]
-VENDOR_NAME= ["", "SM TRAVEL GEAR PVT LTD.","SR INDUSTRIES"]
+VENDOR_NAME= ["", "SM TRAVEL GEAR PVT LTD.","SR INDUSTRIES","AREVE FASHIONS PRIVAET LIMITED"]
 
 SKU_PLACEHOLDER = "— Select SKU —"
 
