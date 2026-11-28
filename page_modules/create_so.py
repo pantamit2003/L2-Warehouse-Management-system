@@ -30,6 +30,8 @@ IMPORTANT:
 
 from __future__ import annotations
 
+import time
+
 import streamlit as st
 
 from auth import get_client
@@ -2182,6 +2184,19 @@ def render_create_so(on_back=None) -> None:
                 errors.append(
                     "Please add at least one SKU."
                 )
+
+
+            # ---------------------------------------------
+            # SHOW SPINNER BRIEFLY ON VALIDATION FAILURE
+            #
+            # Validation bahut fast hoti hai, isliye browser
+            # ko spinner draw karne ka time dene ke liye
+            # chhota sa pause. Sirf tab jab errors ho.
+            # ---------------------------------------------
+
+            if errors:
+
+                time.sleep(0.5)
 
 
             # ---------------------------------------------
