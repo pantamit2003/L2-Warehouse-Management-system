@@ -2063,241 +2063,257 @@ def render_create_so(on_back=None) -> None:
     ):
 
         # =================================================
-        # VALIDATION
+        # RESULT HOLDERS
+        #
+        # Spinner ke andar sirf validation + creation hoga.
+        # Errors / result spinner band hone ke BAAD dikhenge.
         # =================================================
 
         errors = []
 
+        success = False
 
-        # -------------------------------------------------
-        # CUSTOMER
-        # -------------------------------------------------
+        order_id = None
 
-        if not _s(customer_name):
-
-            errors.append(
-                "Customer Name is required."
-            )
-
-
-        if not _s(phone):
-
-            errors.append(
-                "Phone Number is required."
-            )
-
-
-        # -------------------------------------------------
-        # BILLING
-        # -------------------------------------------------
-
-        if not _s(billing_address_1):
-
-            errors.append(
-                "Billing Address Line 1 is required."
-            )
-
-
-        if not _s(billing_pincode):
-
-            errors.append(
-                "Billing Pincode is required."
-            )
-
-
-        if not _s(billing_state):
-
-            errors.append(
-                "Billing State is required."
-            )
-
-
-        if not _s(billing_city):
-
-            errors.append(
-                "Billing City is required."
-            )
-
-
-        # -------------------------------------------------
-        # SHIPPING
-        #
-        # ONLY VALIDATE IF DIFFERENT SHIPPING ADDRESS
-        # -------------------------------------------------
-
-        if not same_as_billing:
-
-            if not _s(shipping_address_1):
-
-                errors.append(
-                    "Shipping Address Line 1 is required."
-                )
-
-
-            if not _s(shipping_pincode):
-
-                errors.append(
-                    "Shipping Pincode is required."
-                )
-
-
-            if not _s(shipping_state):
-
-                errors.append(
-                    "Shipping State is required."
-                )
-
-
-            if not _s(shipping_city):
-
-                errors.append(
-                    "Shipping City is required."
-                )
-
-
-        # -------------------------------------------------
-        # SKU
-        # -------------------------------------------------
-
-        if not st.session_state.so_items:
-
-            errors.append(
-                "Please add at least one SKU."
-            )
+        error = None
 
 
         # =================================================
-        # SHOW ERRORS
+        # SPINNER:
+        # VALIDATE  →  (if valid)  →  CREATE ORDER
+        # =================================================
+
+        with st.spinner(
+            "Validating details and creating Sales Order..."
+        ):
+
+            # ---------------------------------------------
+            # CUSTOMER
+            # ---------------------------------------------
+
+            if not _s(customer_name):
+
+                errors.append(
+                    "Customer Name is required."
+                )
+
+
+            if not _s(phone):
+
+                errors.append(
+                    "Phone Number is required."
+                )
+
+
+            # ---------------------------------------------
+            # BILLING
+            # ---------------------------------------------
+
+            if not _s(billing_address_1):
+
+                errors.append(
+                    "Billing Address Line 1 is required."
+                )
+
+
+            if not _s(billing_pincode):
+
+                errors.append(
+                    "Billing Pincode is required."
+                )
+
+
+            if not _s(billing_state):
+
+                errors.append(
+                    "Billing State is required."
+                )
+
+
+            if not _s(billing_city):
+
+                errors.append(
+                    "Billing City is required."
+                )
+
+
+            # ---------------------------------------------
+            # SHIPPING
+            #
+            # ONLY VALIDATE IF DIFFERENT SHIPPING ADDRESS
+            # ---------------------------------------------
+
+            if not same_as_billing:
+
+                if not _s(shipping_address_1):
+
+                    errors.append(
+                        "Shipping Address Line 1 is required."
+                    )
+
+
+                if not _s(shipping_pincode):
+
+                    errors.append(
+                        "Shipping Pincode is required."
+                    )
+
+
+                if not _s(shipping_state):
+
+                    errors.append(
+                        "Shipping State is required."
+                    )
+
+
+                if not _s(shipping_city):
+
+                    errors.append(
+                        "Shipping City is required."
+                    )
+
+
+            # ---------------------------------------------
+            # SKU
+            # ---------------------------------------------
+
+            if not st.session_state.so_items:
+
+                errors.append(
+                    "Please add at least one SKU."
+                )
+
+
+            # ---------------------------------------------
+            # CREATE ORDER (ONLY IF VALIDATION PASSED)
+            # ---------------------------------------------
+
+            if not errors:
+
+                order_data = {
+
+                    # -----------------------------------------
+                    # ORDER
+                    # -----------------------------------------
+
+                    "warehouse":
+                        warehouse,
+
+                    "existing_customer":
+                        _s(existing_customer)
+                        or None,
+
+                    "customer_name":
+                        _s(customer_name),
+
+                    "email":
+                        _s(email)
+                        or None,
+
+                    "phone":
+                        _s(phone),
+
+                    "alternate_phone":
+                        _s(alternate_phone)
+                        or None,
+
+                    "remark":
+                        _s(remark)
+                        or None,
+
+                    "order_type":
+                        order_type,
+
+                    # -----------------------------------------
+                    # BILLING
+                    # -----------------------------------------
+
+                    "billing_address_1":
+                        _s(billing_address_1),
+
+                    "billing_address_2":
+                        _s(billing_address_2)
+                        or None,
+
+                    "billing_pincode":
+                        _s(billing_pincode),
+
+                    "billing_state":
+                        _s(billing_state),
+
+                    "billing_city":
+                        _s(billing_city),
+
+                    # -----------------------------------------
+                    # SHIPPING
+                    #
+                    # If Same as Billing:
+                    # billing values are copied here.
+                    # -----------------------------------------
+
+                    "shipping_name":
+                        _s(shipping_name)
+                        or None,
+
+                    "shipping_phone":
+                        _s(shipping_phone)
+                        or None,
+
+                    "shipping_address_1":
+                        _s(shipping_address_1),
+
+                    "shipping_address_2":
+                        _s(shipping_address_2)
+                        or None,
+
+                    "shipping_pincode":
+                        _s(shipping_pincode),
+
+                    "shipping_state":
+                        _s(shipping_state),
+
+                    "shipping_city":
+                        _s(shipping_city),
+
+                    # -----------------------------------------
+                    # FLAG
+                    # -----------------------------------------
+
+                    "same_as_billing":
+                        same_as_billing,
+
+                    # -----------------------------------------
+                    # STATUS
+                    # -----------------------------------------
+
+                    "status":
+                        "CREATED",
+                }
+
+                success, order_id, error = _create_order(
+                    order_data,
+                    st.session_state.so_items,
+                )
+
+
+        # =================================================
+        # SPINNER IS GONE HERE
+        # =================================================
+
+
+        # =================================================
+        # VALIDATION ERRORS
         # =================================================
 
         if errors:
 
-            for error in errors:
+            for validation_error in errors:
 
                 st.error(
-                    f"❌ {error}"
+                    f"❌ {validation_error}"
                 )
 
             return
-
-
-        # =================================================
-        # PREPARE ORDER DATA
-        # =================================================
-
-        order_data = {
-
-            # -------------------------------------------------
-            # ORDER
-            # -------------------------------------------------
-
-            "warehouse":
-                warehouse,
-
-            "existing_customer":
-                _s(existing_customer)
-                or None,
-
-            "customer_name":
-                _s(customer_name),
-
-            "email":
-                _s(email)
-                or None,
-
-            "phone":
-                _s(phone),
-
-            "alternate_phone":
-                _s(alternate_phone)
-                or None,
-
-            "remark":
-                _s(remark)
-                or None,
-
-            "order_type":
-                order_type,
-
-            # -------------------------------------------------
-            # BILLING
-            # -------------------------------------------------
-
-            "billing_address_1":
-                _s(billing_address_1),
-
-            "billing_address_2":
-                _s(billing_address_2)
-                or None,
-
-            "billing_pincode":
-                _s(billing_pincode),
-
-            "billing_state":
-                _s(billing_state),
-
-            "billing_city":
-                _s(billing_city),
-
-            # -------------------------------------------------
-            # SHIPPING
-            #
-            # If Same as Billing:
-            # billing values are copied here.
-            # -------------------------------------------------
-
-            "shipping_name":
-                _s(shipping_name)
-                or None,
-
-            "shipping_phone":
-                _s(shipping_phone)
-                or None,
-
-            "shipping_address_1":
-                _s(shipping_address_1),
-
-            "shipping_address_2":
-                _s(shipping_address_2)
-                or None,
-
-            "shipping_pincode":
-                _s(shipping_pincode),
-
-            "shipping_state":
-                _s(shipping_state),
-
-            "shipping_city":
-                _s(shipping_city),
-
-            # -------------------------------------------------
-            # FLAG
-            # -------------------------------------------------
-
-            "same_as_billing":
-                same_as_billing,
-
-            # -------------------------------------------------
-            # STATUS
-            # -------------------------------------------------
-
-            "status":
-                "CREATED",
-        }
-
-
-        # =================================================
-        # SAVE
-        # =================================================
-
-        with st.spinner(
-            "Creating Sales Order..."
-        ):
-
-            success, order_id, error = _create_order(
-                order_data,
-                st.session_state.so_items,
-            )
 
 
         # =================================================
@@ -2316,7 +2332,7 @@ def render_create_so(on_back=None) -> None:
 
 
         # =================================================
-        # ERROR
+        # SUPABASE ERROR
         # =================================================
 
         else:
