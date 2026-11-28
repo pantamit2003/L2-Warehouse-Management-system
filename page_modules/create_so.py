@@ -943,6 +943,37 @@ def inject_create_so_css() -> None:
             margin-bottom: 1rem;
         }
 
+
+        /* =================================================
+           SPINNER (CENTER OF SCREEN)
+           ================================================= */
+
+        div[data-testid="stSpinner"] {
+
+            position: fixed !important;
+
+            top: 50% !important;
+
+            left: 50% !important;
+
+            transform: translate(-50%, -50%) !important;
+
+            z-index: 999999 !important;
+
+            width: auto !important;
+
+            background: #ffffff !important;
+
+            border: 1px solid #e5e7eb !important;
+
+            border-radius: 12px !important;
+
+            padding: 1rem 1.6rem !important;
+
+            box-shadow:
+                0 10px 30px rgba(0, 0, 0, 0.18) !important;
+        }
+
         </style>
         """,
         unsafe_allow_html=True,
